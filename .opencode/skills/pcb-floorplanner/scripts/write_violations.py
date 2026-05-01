@@ -19,7 +19,23 @@ from scorer import load_run, score
 def write_violations(run_id, db_path=DEFAULT_DB):
     conn = connect(db_path)
     placements, constraints, nets = load_run(conn, run_id)
-    result = score(placements, constraints, nets)
+
+    board = conn.execute(
+        """SELECT b.width_mm, b.height_mm FROM board_outline b
+           JOIN optimization_runs r ON r.version_id=b.version_id
+           WHERE r.id=?""",
+        (run_id,),
+    ).fetchone()
+    board_dims = (board[0], board[1]) if board else None
+
+    keep_outs = conn.execute(
+        """SELECT k.x_mm, k.y_mm, k.width_mm, k.height_mm
+           FROM keep_out_zones k JOIN optimization_runs r ON r.version_id=k.version_id
+           WHERE r.id=?""",
+        (run_id,),
+    ).fetchall()
+
+    result = score(placements, constraints, nets, keep_outs=keep_outs or None, board=board_dims)
 
     # build constraint metadata for hard flag lookup
     con_meta = {

@@ -85,12 +85,16 @@ def cells_for(x, y, w, h, cyd, res):
     return [(cx, cy) for cx in range(cx0, cx1) for cy in range(cy0, cy1)]
 
 
-def fits(x, y, w, h, cyd, W, H, occupied, res):
+def fits(x, y, w, h, cyd, W, H, occupied, res, ignore_keep_outs=False):
     if x < 0 or y < 0 or x + w > W or y + h > H:
         return False
     for cell in cells_for(x, y, w, h, cyd, res):
-        if cell in occupied:
-            return False
+        occupant = occupied.get(cell)
+        if occupant is None:
+            continue
+        if occupant == -1 and ignore_keep_outs:
+            continue  # FIXED edge components are allowed to sit in keep-out zones
+        return False
     return True
 
 
@@ -144,12 +148,12 @@ def greedy_place(version_id, db_path=DEFAULT_DB):
             continue
         x, y = fixed_position(comp["name"], comp["w"], comp["h"], W, H, requirements)
         x, y = snap(x, RES), snap(y, RES)
-        # nudge until it fits
+        # nudge until it fits — FIXED components may overlap keep-out zones (they ARE the edge)
         for attempt in range(200):
             ox = (attempt % 10) * RES * (1 if attempt % 2 == 0 else -1)
             oy = (attempt // 10) * RES * (1 if (attempt // 10) % 2 == 0 else -1)
             tx, ty = snap(x + ox, RES), snap(y + oy, RES)
-            if fits(tx, ty, comp["w"], comp["h"], comp["cyd"], W, H, occupied, RES):
+            if fits(tx, ty, comp["w"], comp["h"], comp["cyd"], W, H, occupied, RES, ignore_keep_outs=True):
                 placements[comp_id] = (tx, ty)
                 place_at(comp_id, tx, ty, comp["w"], comp["h"], comp["cyd"], occupied, RES)
                 break

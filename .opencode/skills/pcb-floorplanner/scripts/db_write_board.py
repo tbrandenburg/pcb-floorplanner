@@ -36,10 +36,22 @@ def write_board(data: dict, db_path=DEFAULT_DB) -> dict:
     )
 
     keep_out_zones = data.get("keep_out_zones", [])
+    edge_warnings = []
     for z in keep_out_zones:
         # validate zone fits within board
         if z["x_mm"] + z["width_mm"] > b["width_mm"] or z["y_mm"] + z["height_mm"] > b["height_mm"]:
             raise ValueError(f"Keep-out zone '{z['reason']}' exceeds board boundary")
+        # warn if keep-out spans an entire board edge — this will block FIXED edge connectors
+        spans_top    = z["y_mm"] == 0 and z["x_mm"] == 0 and z["width_mm"] >= b["width_mm"]
+        spans_bottom = (z["y_mm"] + z["height_mm"] >= b["height_mm"]) and z["x_mm"] == 0 and z["width_mm"] >= b["width_mm"]
+        spans_left   = z["x_mm"] == 0 and z["y_mm"] == 0 and z["height_mm"] >= b["height_mm"]
+        spans_right  = (z["x_mm"] + z["width_mm"] >= b["width_mm"]) and z["y_mm"] == 0 and z["height_mm"] >= b["height_mm"]
+        if spans_top or spans_bottom or spans_left or spans_right:
+            edge_warnings.append(
+                f"Keep-out '{z['reason']}' spans a full board edge — FIXED edge connectors "
+                f"will be blocked unless placer_greedy ignore_keep_outs=True is used. "
+                f"Consider using only corner keep-outs for mount holes."
+            )
         conn.execute(
             "INSERT INTO keep_out_zones(version_id, x_mm, y_mm, width_mm, height_mm, reason) VALUES (?,?,?,?,?,?)",
             (vid, z["x_mm"], z["y_mm"], z["width_mm"], z["height_mm"], z["reason"]),
@@ -75,11 +87,16 @@ def write_board(data: dict, db_path=DEFAULT_DB) -> dict:
 
     conn.commit()
     conn.close()
-    return {
+    result = {
         "board": f"{b['width_mm']}x{b['height_mm']}mm",
         "keep_out_zones": len(data.get("keep_out_zones", [])),
         "mount_holes": len(data.get("mount_holes", [])),
     }
+    if edge_warnings:
+        result["warnings"] = edge_warnings
+        for w in edge_warnings:
+            print(f"WARNING: {w}", file=sys.stderr)
+    return result
 
 
 if __name__ == "__main__":

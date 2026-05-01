@@ -5,6 +5,7 @@ Covers:
   - cells_for(): includes courtyard in coverage
   - fits(): board boundary enforcement
   - fits(): keep-out pre-marking blocks placement
+  - fits(): ignore_keep_outs=True allows FIXED edge components in keep-out zones
   - snap(): rounds to nearest grid step (not floor)
   - place_at(): marks all courtyard cells in occupied
 """
@@ -75,6 +76,21 @@ def test_fits_rejects_occupied_cell():
 def test_fits_rejects_keep_out_cell():
     occupied = {(3, 3): -1}  # -1 = keep-out marker
     assert fits(3, 3, 2, 2, 0, 50, 50, occupied, 1.0) is False
+
+
+def test_fits_fixed_component_allowed_in_keep_out_zone():
+    """FIXED edge connectors must be able to sit inside keep-out zones."""
+    occupied = {(3, 3): -1, (4, 3): -1, (3, 4): -1, (4, 4): -1}  # 2x2 keep-out block
+    # normal fit → blocked
+    assert fits(3, 3, 2, 2, 0, 50, 50, occupied, 1.0) is False
+    # with ignore_keep_outs → allowed (connector placed at board edge keep-out zone)
+    assert fits(3, 3, 2, 2, 0, 50, 50, occupied, 1.0, ignore_keep_outs=True) is True
+
+
+def test_fits_fixed_still_blocked_by_other_components_in_keep_out():
+    """ignore_keep_outs only bypasses keep-out cells (-1), not real component cells."""
+    occupied = {(3, 3): 42}  # occupied by another component (not a keep-out)
+    assert fits(3, 3, 2, 2, 0, 50, 50, occupied, 1.0, ignore_keep_outs=True) is False
 
 
 def test_fits_allows_position_after_occupied_area():

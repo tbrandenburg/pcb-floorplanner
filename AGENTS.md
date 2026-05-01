@@ -98,9 +98,12 @@ output/
 
 ---
 
-## Known gap
+## Edge placement and scoring invariants (enforced by tests)
 
-FIXED constraints currently produce zero penalty in `scorer.py` (line 84-88 always sets
-`penalty = 0.0`). The SA has no incentive to keep connectors at board edges beyond the greedy
-placer's initial placement. Tracked in `test_fixed_constraint_currently_no_penalty` as an
-`xfail`-style documentation test.
+- **FIXED placer:** `placer_greedy.py` uses `ignore_keep_outs=True` for FIXED components
+  so edge connectors can sit inside corner/edge keep-out zones without being nudged inward.
+- **FIXED scorer penalty:** `scorer.py` penalises FIXED components proportional to their distance
+  from the nearest board edge when `board=(W, H)` is passed. SA is therefore incentivised to keep
+  FIXED components at board edges. Pass `board=None` for backward-compatible zero penalty.
+- **Edge keep-out warning:** `db_write_board.py` emits a `WARNING` to stderr when a keep-out zone
+  spans a full board edge — this pattern blocks FIXED edge connectors and is almost always wrong.

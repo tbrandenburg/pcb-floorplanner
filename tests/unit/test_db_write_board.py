@@ -7,6 +7,7 @@ Covers:
   - mount hole overlapping a non-mount-hole keep-out raises ValueError
   - mount hole inside its own mount-hole keep-out does NOT raise (correct design)
   - valid board data writes without error
+  - full-edge keep-out zone emits a warning (would block FIXED edge connectors)
 """
 
 import pytest
@@ -127,3 +128,46 @@ def test_mount_hole_inside_own_keep_out_does_not_raise(tmp_path):
         db,
     )
     assert result["mount_holes"] == 1
+
+
+def test_full_edge_keep_out_emits_warning(tmp_path, capsys):
+    """Keep-out spanning entire top edge should warn — it will block FIXED edge connectors."""
+    db = make_db_path(tmp_path)
+    result = write_board(
+        {
+            "version_id": 1,
+            "board": BOARD,
+            "keep_out_zones": [
+                # spans full top edge (x=0, y=0, width=full board width)
+                {"x_mm": 0, "y_mm": 0, "width_mm": 85.0, "height_mm": 8.0, "reason": "top connector zone"},
+            ],
+            "mount_holes": [],
+        },
+        db,
+    )
+    assert result["keep_out_zones"] == 1
+    assert "warnings" in result
+    assert len(result["warnings"]) == 1
+    assert "full board edge" in result["warnings"][0]
+    captured = capsys.readouterr()
+    assert "WARNING" in captured.err
+
+
+def test_corner_keep_out_does_not_warn(tmp_path, capsys):
+    """Corner keep-outs for mount holes should not trigger the edge-blocking warning."""
+    db = make_db_path(tmp_path)
+    result = write_board(
+        {
+            "version_id": 1,
+            "board": BOARD,
+            "keep_out_zones": [
+                {"x_mm": 0, "y_mm": 0, "width_mm": 7, "height_mm": 7, "reason": "mount hole corner TL"},
+                {"x_mm": 78, "y_mm": 0, "width_mm": 7, "height_mm": 7, "reason": "mount hole corner TR"},
+            ],
+            "mount_holes": [],
+        },
+        db,
+    )
+    assert "warnings" not in result
+    captured = capsys.readouterr()
+    assert "WARNING" not in captured.err

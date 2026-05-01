@@ -8,7 +8,8 @@ Covers:
   - NEAR constraint fires only when d > max_dist (boundary must not trigger)
   - FAR constraint fires only when d < min_dist (boundary must not trigger)
   - ALIGN constraint penalises centroid Y difference
-  - FIXED constraint is currently a known gap (always 0 — documented)
+  - FIXED constraint penalises distance from nearest board edge when board dims provided
+  - FIXED constraint with no board dims → zero penalty (graceful degradation)
   - total_penalty = sum of all terms (no silent drops)
   - fits()-then-score consistency: greedy placement implies zero overlap_penalty
 """
@@ -184,16 +185,56 @@ def test_align_penalty_when_y_differs():
     assert result["constraint_penalty"] == pytest.approx(1.0 * 10.0 * 0.1, rel=1e-4)
 
 
-# ── FIXED constraint (known gap) ──────────────────────────────────────────────
+# ── FIXED constraint ─────────────────────────────────────────────────────────
 
 
-def test_fixed_constraint_currently_no_penalty():
-    """FIXED constraints currently produce zero penalty regardless of position.
-    This test documents the known gap — update when FIXED scoring is implemented."""
-    p = {1: make_comp(40, 28, 5, 5)}  # centre of board, not near any edge
+def test_fixed_constraint_no_penalty_at_board_edge():
+    """Component centroid on the top edge (y_c == 0) → min dist from edge == 0 → no penalty."""
+    # Board 100x100. Component 4x0 so centroid at (42, 0) — exactly on top edge.
+    p = {1: make_comp(40, 0, 4, 0)}
+    c = [make_constraint(1, "FIXED", 1, weight=1.0)]
+    result = score(p, c, [], board=(100, 100))
+    assert result["constraint_penalty"] == 0.0
+
+
+def test_fixed_constraint_penalises_component_far_from_edge():
+    """Component in the centre of the board gets a large FIXED penalty."""
+    # Board 100x100. Component centroid at (50, 50) → 50mm from every edge.
+    p = {1: make_comp(48, 48, 4, 4)}
+    c = [make_constraint(1, "FIXED", 1, weight=1.0)]
+    result = score(p, c, [], board=(100, 100))
+    # centroid (50,50): min(50, 50, 50, 50) = 50 → penalty = 1.0 * 50 = 50
+    assert result["constraint_penalty"] == pytest.approx(50.0)
+
+
+def test_fixed_constraint_near_bottom_edge_lower_penalty_than_centre():
+    """Component near the bottom edge should have lower penalty than one in the centre."""
+    board = (100, 100)
+    c = [make_constraint(1, "FIXED", 1, weight=1.0)]
+    p_centre = {1: make_comp(48, 48, 4, 4)}   # centroid (50, 50) → dist 50
+    p_edge   = {1: make_comp(48, 94, 4, 4)}   # centroid (50, 96) → dist min(50,50,96,4)=4
+    centre_penalty = score(p_centre, c, [], board=board)["constraint_penalty"]
+    edge_penalty   = score(p_edge,   c, [], board=board)["constraint_penalty"]
+    assert edge_penalty < centre_penalty
+
+
+def test_fixed_constraint_without_board_dims_is_zero():
+    """When board dims are not provided, FIXED penalty degrades gracefully to 0."""
+    p = {1: make_comp(40, 28, 5, 5)}
     c = [make_constraint(1, "FIXED", 1)]
-    result = score(p, c, [])
-    assert result["constraint_penalty"] == 0.0  # known gap: FIXED is not penalised
+    result = score(p, c, [])   # no board kwarg
+    assert result["constraint_penalty"] == 0.0
+
+
+def test_fixed_constraint_violation_recorded_when_far_from_edge():
+    """Component > 5mm from any edge should appear in violations list."""
+    p = {1: make_comp(48, 48, 4, 4)}   # centroid (50,50), dist=50
+    c = [make_constraint(1, "FIXED", 1, weight=1.0)]
+    result = score(p, c, [], board=(100, 100))
+    assert len(result["violations"]) == 1
+    con_id, actual, delta = result["violations"][0]
+    assert actual == pytest.approx(50.0)
+    assert delta == pytest.approx(45.0)   # 50 - 5 threshold
 
 
 # ── net length (HPWL) ─────────────────────────────────────────────────────────

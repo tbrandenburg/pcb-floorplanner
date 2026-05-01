@@ -76,9 +76,15 @@ def keep_out_penalty(placements, keep_outs):
     return penalty
 
 
-def score(placements, constraints, nets, keep_outs=None):
+def score(placements, constraints, nets, keep_outs=None, board=None):
+    """
+    board: optional (width_mm, height_mm) tuple — required for FIXED edge penalty.
+    Coordinate system: y=0 is top edge, y=H is bottom edge (screen coords).
+    """
     constraint_penalty = 0.0
     violations = []
+
+    W, H = (board[0], board[1]) if board else (None, None)
 
     for con in constraints:
         con_id, ctype, a_id, b_id, min_d, max_d, weight, hard = con
@@ -86,10 +92,19 @@ def score(placements, constraints, nets, keep_outs=None):
             continue
 
         if ctype == "FIXED":
-            # penalise if not near a board edge (crude heuristic)
-            pa = placements[a_id]
-            ax, ay = centroid(pa)
-            penalty = 0.0
+            # Penalise distance from nearest board edge.
+            # Without board dimensions we cannot compute this — skip gracefully.
+            if W is None or H is None:
+                penalty = 0.0
+            else:
+                pa = placements[a_id]
+                ax, ay = centroid(pa)
+                dist_from_edge = min(ax, W - ax, ay, H - ay)
+                # dist_from_edge == 0 means centroid is exactly on a board edge.
+                # Penalise proportional to how far inside the board the component sits.
+                penalty = weight * dist_from_edge
+                if dist_from_edge > 5.0:  # more than 5 mm from any edge = violation
+                    violations.append((con_id, dist_from_edge, dist_from_edge - 5.0))
         elif ctype in ("NEAR", "FAR", "ALIGN"):
             if b_id is None or b_id not in placements:
                 continue

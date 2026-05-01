@@ -94,7 +94,8 @@ def anneal(run_id, n_iter=5000, seed=42, db_path=DEFAULT_DB):
         ).fetchall()
     )
 
-    current_score = score(placements, constraints, nets, keep_outs)
+    board_dims = (W, H)
+    current_score = score(placements, constraints, nets, keep_outs, board=board_dims)
     best_score = current_score["total_penalty"]
     best_placements = copy.deepcopy(placements)
 
@@ -107,7 +108,7 @@ def anneal(run_id, n_iter=5000, seed=42, db_path=DEFAULT_DB):
 
     for i in range(n_iter):
         new_placements, _ = propose_move(placements, fixed_ids, W, H, RES, rng)
-        new_s = score(new_placements, constraints, nets, keep_outs)
+        new_s = score(new_placements, constraints, nets, keep_outs, board=board_dims)
         delta = new_s["total_penalty"] - current_score["total_penalty"]
 
         if delta < 0 or rng.random() < math.exp(-delta / max(T, 1e-9)):

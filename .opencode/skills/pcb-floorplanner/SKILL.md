@@ -65,8 +65,9 @@ For each Python step:
 | 6 | Initial Placement | Python | `placer_greedy.py` |
 | 7 | Optimization | Python | `optimizer_annealing.py` |
 | 8 | Scoring + Violation Report | Python | `scorer.py` |
-| 9 | LLM Review + Decision | LLM | `db_write_review.py` |
-| 10 | Render + Export | Python | `render_png.py` + `render_report.py` |
+| 9 | Render + Export | Python | `render_png.py` + `render_report.py` |
+| 9.5 | Visual Inspection | LLM + PNG | adversarial checklist (see below) |
+| 10 | LLM Review + Decision | LLM | `db_write_review.py` |
 
 ## Helper script calling convention
 
@@ -104,19 +105,143 @@ python scripts/db_lock_version.py --version_id 1
 - Requirements key-value pairs to always consider:
   - `near: <ref>` — must be placed close (decoupling caps, crystals, DDR)
   - `far: <ref>` — must be separated (switching reg from ADC, RF from digital)
-  - `edge: <side>` — connector forced to board edge (top/bottom/left/right)
+  - `edge: <side>` — connector forced to board edge: `top` (y≈0), `bottom` (y≈H), `left` (x≈0), `right` (x≈W)
   - `max_temp_c: <N>` — thermal constraint
+
+### Step 2 — Board Definition
+
+**Coordinate system:** origin (0,0) is the **top-left** corner of the render.
+
+- `y` increases **downward** (screen coordinates).
+- `"top"` edge in `requirements` → low `y` values (≈ 0).
+- `"bottom"` edge → high `y` values (≈ `height_mm`).
+- This matches the render output: top of PNG = top of board = y=0.
+
+**Keep-out zone anti-pattern — do NOT define keep-outs for edge connector zones:**
+
+Keep-out zones block ALL components including FIXED edge connectors. If you define a
+keep-out for "bottom edge connector zone", the placer will refuse to place connectors there.
+
+**Correct pattern:** use keep-outs only for areas where NO component should ever go:
+
+- Mount hole corners (mechanical clearance around screws) ✓
+- RF antenna area (no copper, no components) ✓
+- Full-edge connector zone ✗ — this blocks the connectors themselves
+
+**When `db_write_board.py` writes a keep-out that spans a full edge, it will emit a
+`WARNING` to stderr.** If you see that warning, remove the full-edge keep-out.
 
 ### Step 4 — Constraint Derivation
 
-- NEAR constraints: decoupling caps ≤2 mm, crystal ≤5 mm, DDR topology matched
 - FAR constraints: switching regulator >10 mm from ADC; RF >10 mm from digital logic
 - FIXED: all edge connectors (USB, HDMI, Ethernet, power jack)
 - Hard constraints (hard=1): FIXED positions, zero-overlap rule
 - Soft constraints (hard=0): NEAR/FAR distances with tunable weight
 - Always include a reason string — used verbatim in violation reports
 
-### Step 9 — LLM Review
+### Step 9 — Render + Export
+
+Run both render scripts and confirm output files exist and are non-zero bytes:
+
+```bash
+python scripts/render_png.py --run_id <id>
+# → {"floorplan": "output/floorplan.png", "heatmap": "output/heatmap.png"}
+python scripts/render_report.py --run_id <id>
+# → {"report": "output/report.html"}
+ls -lh output/floorplan.png output/heatmap.png
+```
+
+Proceed to Step 9.5 immediately after — do NOT write the review decision yet.
+
+### Step 9.5 — Visual Inspection (adversarial)
+
+**This step is mandatory. Do not skip it. Do not approve from scores alone.**
+
+Visually inspect the rendered PNG and work through every
+item on the checklist below. Assume the placement is broken until each item is
+explicitly confirmed from the image.
+
+#### Image orientation and colour legend
+
+**Coordinate system:** `x=0, y=0` is the **top-left** corner of the board.
+`x` increases to the right, `y` increases downward.
+A connector at the bottom edge of the physical board will appear at the **bottom** of the image (high y).
+A connector at the top edge will appear at the **top** of the image (low y).
+
+| What you see | Meaning |
+|---|---|
+| Dark green fill | PCB substrate (board area) |
+| Bright green border | Board outline |
+| Faint green grid lines | 5 mm grid |
+| Semi-transparent red rectangle | Keep-out zone — components must not enter here |
+| Gold ring + dark hole | Mount hole (copper annular ring + drill) |
+| Coloured filled rectangle | Component body — colour varies by type (see below) |
+| Dashed grey outline around component | Courtyard / exclusion zone |
+| Red/pink outline on component | Component has a constraint violation |
+| White text inside component | Component name label |
+
+**Component fill colours (approximate):**
+SoC → gold; SDRAM → blue; PMIC → orange; Connector → blue-grey;
+Crystal → near-white; everything else → mid-grey.
+
+**Heatmap (separate `heatmap.png`):** dark = empty space; yellow-green → red = increasing
+component density. A good placement has no isolated red hot-spot.
+
+#### Adversarial Visual Checklist
+
+Work through each item. For every FAIL, record it — do not stop at the first failure.
+
+##### EDGE PLACEMENT
+
+- [ ] All connectors (USB, audio jacks, power) are touching or within 2mm of the board edge
+- [ ] No connector is floating in the middle of the board
+- [ ] Buttons/switches labelled as front-panel controls are at the correct edge (top/bottom as specified)
+- [ ] Connectors are on the correct edge (e.g. USB on bottom = high-y edge in render)
+
+##### KEEP-OUT ZONES
+
+- [ ] Red hatched areas (keep-outs) are only at corners / mechanical features, not blocking any connector
+- [ ] Mount hole copper rings are visible at all four corners
+- [ ] No component body overlaps a red keep-out zone (unless it is a FIXED connector that is allowed)
+
+##### COMPONENT CLUSTERING
+
+- [ ] Decoupling caps are visually adjacent to their IC (within ~2mm, not 10+ mm away)
+- [ ] Crystal is visually close to the MCU, not isolated in a corner
+- [ ] Power regulation components (LDO, PMIC) are not scattered far from their load
+
+##### OVERLAP AND SPACING
+
+- [ ] No two component bodies visually overlap each other
+- [ ] No component is placed off-board (outside the green PCB area)
+- [ ] Components do not cluster into one dense corner with half the board empty
+
+##### LABEL READABILITY
+
+- [ ] At least one FIXED component per expected edge has a label visible near that edge
+- [ ] The board outline (green border) is clearly visible on all four sides
+
+##### CROSS-CHECK AGAINST VIOLATIONS DATA
+
+- [ ] For every NEAR violation with `delta_mm > 10`: confirm visually that the two components
+  are at least in the same half of the board. If they are on opposite sides, flag as MODIFY.
+- [ ] For every FIXED component in the violations list: confirm it is actually at an edge.
+  If not → mandatory MODIFY, this is a placement error not a soft tradeoff.
+
+#### Decision rules after visual inspection
+
+| Visual finding | Decision |
+|---|---|
+| Any connector not at its required board edge | MODIFY — re-run from Step 4 |
+| Any component off-board | MODIFY |
+| Any two components visually overlapping | MODIFY |
+| All edge connectors at edge, minor clustering issues | APPROVE with note |
+| All checklist items pass | APPROVE |
+
+Record findings verbatim in the `--note` argument of `db_write_review.py`.
+Format: `"VISUAL: <pass/fail summary>. SCORES: <violation summary>. DECISION: <action>."`
+
+### Step 10 — LLM Review + Decision
 
 Read violations via:
 
@@ -133,7 +258,7 @@ Choose action: APPROVE / MODIFY / RERUN
 - MODIFY: create new version, update constraint weights, re-run Steps 5–8
 - RERUN: same version, new `optimization_runs` row, different random seed
 
-## Modify cycle (Step 9 → Step 4)
+## Modify cycle (Step 10 → Step 4)
 
 Never unlock a LOCKED version. Instead:
 
@@ -220,8 +345,8 @@ EE says: "The placement looks locally stuck — try again."
 1. Create a new design_version (DRAFT) for the same session
 2. Copy unchanged tables from the old version
 3. Apply only the EE's change to the relevant table(s)
-4. Lock the new version  →  Step 5
-5. Re-run Steps 6–10
+    4. Lock the new version  →  Step 5
+    5. Re-run Steps 6–10 (including visual inspection at Step 9.5)
 6. Compare versions: make db-status / make db-summary
 ```
 
@@ -230,7 +355,7 @@ Use `make db-status` to list all versions and `make db-summary` to compare score
 
 ## Render output
 
-Step 10 produces in `output/`:
+Step 9 produces in `output/`:
 
 - `floorplan.svg` — vector, layer-coloured, labelled with ref-des
 - `floorplan.png` — cairocffi raster, PCB-green substrate, copper pads
