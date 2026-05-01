@@ -4,7 +4,7 @@
 
 No schematic tools. No layout expertise required. Just tell the AI what you're building.
 
-```
+```text
 "Create a floorplan for a Raspberry Pi clone with LPDDR4X, USB-C power,
  HDMI output, M.2 SSD slot, and 40-pin GPIO header."
 ```
@@ -62,7 +62,7 @@ python db/db_init.py
 
 The pipeline is packaged as an [OpenCode](https://opencode.ai) skill:
 
-```
+```text
 .opencode/skills/pcb-floorplanner/
 ├── SKILL.md          # Entrypoint — load this in your AI agent
 ├── references/       # Workflow and schema documentation

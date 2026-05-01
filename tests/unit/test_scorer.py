@@ -12,6 +12,7 @@ Covers:
   - total_penalty = sum of all terms (no silent drops)
   - fits()-then-score consistency: greedy placement implies zero overlap_penalty
 """
+
 import math
 import pytest
 import sys
@@ -23,6 +24,7 @@ from scorer import score, keep_out_penalty
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
+
 def make_comp(x, y, w, h, cyd=0.0, name="C"):
     return {"x": x, "y": y, "w": w, "h": h, "cyd": cyd, "name": name}
 
@@ -32,6 +34,7 @@ def make_constraint(cid, ctype, a_id, b_id=None, min_d=None, max_d=None, weight=
 
 
 # ── keep_out_penalty ──────────────────────────────────────────────────────────
+
 
 def test_keep_out_penalty_zero_when_outside():
     p = {1: make_comp(10, 10, 5, 5)}
@@ -48,8 +51,8 @@ def test_keep_out_penalty_positive_when_overlapping():
 
 def test_keep_out_penalty_proportional_to_overlap_area():
     # 2x2 overlap → 500 * 4 = 2000
-    p = {1: make_comp(5, 5, 4, 4)}   # body: x=5..9, y=5..9
-    ko = [(3, 3, 4, 4)]              # zone: x=3..7, y=3..7 → overlap 5..7 = 2x2
+    p = {1: make_comp(5, 5, 4, 4)}  # body: x=5..9, y=5..9
+    ko = [(3, 3, 4, 4)]  # zone: x=3..7, y=3..7 → overlap 5..7 = 2x2
     penalty = keep_out_penalty(p, ko)
     assert math.isclose(penalty, 500.0 * 2.0 * 2.0, rel_tol=1e-6)
 
@@ -73,6 +76,7 @@ def test_keep_out_penalty_multiple_components_summed():
 
 
 # ── overlap_penalty ───────────────────────────────────────────────────────────
+
 
 def test_overlap_penalty_zero_when_separated():
     p = {
@@ -114,6 +118,7 @@ def test_overlap_penalty_scales_with_area():
 
 
 # ── NEAR / FAR constraints ────────────────────────────────────────────────────
+
 
 def test_near_no_penalty_when_within_max():
     p = {1: make_comp(0, 0, 2, 2), 2: make_comp(3, 0, 2, 2)}
@@ -163,6 +168,7 @@ def test_far_no_penalty_at_exact_boundary():
 
 # ── ALIGN constraint ──────────────────────────────────────────────────────────
 
+
 def test_align_no_penalty_when_same_y_centroid():
     p = {1: make_comp(0, 0, 4, 4), 2: make_comp(10, 0, 4, 4)}
     c = [make_constraint(1, "ALIGN", 1, 2)]
@@ -180,6 +186,7 @@ def test_align_penalty_when_y_differs():
 
 # ── FIXED constraint (known gap) ──────────────────────────────────────────────
 
+
 def test_fixed_constraint_currently_no_penalty():
     """FIXED constraints currently produce zero penalty regardless of position.
     This test documents the known gap — update when FIXED scoring is implemented."""
@@ -190,6 +197,7 @@ def test_fixed_constraint_currently_no_penalty():
 
 
 # ── net length (HPWL) ─────────────────────────────────────────────────────────
+
 
 def test_net_length_is_hpwl_not_sum_of_pairs():
     # Three components on one net in a line: (0,0), (5,0), (10,0)
@@ -213,6 +221,7 @@ def test_net_length_single_component_is_zero():
 
 # ── total = sum of all terms ──────────────────────────────────────────────────
 
+
 def test_total_penalty_is_sum_of_all_terms():
     p = {
         1: make_comp(0, 0, 5, 5, cyd=0),
@@ -223,15 +232,13 @@ def test_total_penalty_is_sum_of_all_terms():
     c = [make_constraint(1, "FAR", 1, 2, min_d=20.0, weight=1.0)]
     result = score(p, c, nets, keep_outs=ko)
     expected = (
-        result["constraint_penalty"]
-        + result["overlap_penalty"]
-        + result["net_length_est"]
-        + result["keep_out_penalty"]
+        result["constraint_penalty"] + result["overlap_penalty"] + result["net_length_est"] + result["keep_out_penalty"]
     )
     assert math.isclose(result["total_penalty"], expected, rel_tol=1e-9)
 
 
 # ── fits() → overlap_penalty consistency ─────────────────────────────────────
+
 
 def test_fits_implies_zero_overlap_penalty():
     """
@@ -241,7 +248,9 @@ def test_fits_implies_zero_overlap_penalty():
     Uses placer's cells_for() and fits() directly to build a placement, then
     scores it — cross-layer regression test.
     """
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".opencode" / "skills" / "pcb-floorplanner" / "scripts"))
+    sys.path.insert(
+        0, str(Path(__file__).resolve().parents[2] / ".opencode" / "skills" / "pcb-floorplanner" / "scripts")
+    )
     from placer_greedy import fits, place_at
 
     W, H, RES = 50.0, 50.0, 1.0

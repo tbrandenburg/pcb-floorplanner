@@ -6,6 +6,7 @@ Logs every iteration to score_history.
 Usage: python optimizer_annealing.py --run_id 1 [--iterations 5000] [--seed 42]
 Prints: {"best_penalty": N, "iterations": N, "improvement_pct": N}
 """
+
 import argparse, copy, json, math, random, sys
 from pathlib import Path
 
@@ -15,14 +16,15 @@ sys.path.insert(0, str(_db_dir))
 from db_init import connect, DEFAULT_DB
 from scorer import load_run, score
 
-LOG_EVERY = 100   # write score_history row every N iterations
+LOG_EVERY = 100  # write score_history row every N iterations
 
 
 def load_board(conn, run_id):
     return conn.execute(
         """SELECT b.width_mm, b.height_mm, b.grid_resolution
            FROM board_outline b JOIN optimization_runs r ON r.version_id=b.version_id
-           WHERE r.id=?""", (run_id,)
+           WHERE r.id=?""",
+        (run_id,),
     ).fetchone()
 
 
@@ -31,7 +33,8 @@ def load_keep_outs(conn, run_id):
     return conn.execute(
         """SELECT k.x_mm, k.y_mm, k.width_mm, k.height_mm
            FROM keep_out_zones k JOIN optimization_runs r ON r.version_id=k.version_id
-           WHERE r.id=?""", (run_id,)
+           WHERE r.id=?""",
+        (run_id,),
     ).fetchall()
 
 
@@ -85,7 +88,8 @@ def anneal(run_id, n_iter=5000, seed=42, db_path=DEFAULT_DB):
 
     # identify FIXED component ids
     fixed_ids = set(
-        row[0] for row in conn.execute(
+        row[0]
+        for row in conn.execute(
             "SELECT component_id FROM placements WHERE run_id=? AND status='FIXED'", (run_id,)
         ).fetchall()
     )
@@ -114,13 +118,16 @@ def anneal(run_id, n_iter=5000, seed=42, db_path=DEFAULT_DB):
                 best_placements = copy.deepcopy(placements)
 
         if i % LOG_EVERY == 0 or i == n_iter - 1:
-            score_rows.append((
-                run_id, i,
-                current_score["total_penalty"],
-                current_score["constraint_penalty"],
-                current_score["overlap_penalty"],
-                current_score["net_length_est"],
-            ))
+            score_rows.append(
+                (
+                    run_id,
+                    i,
+                    current_score["total_penalty"],
+                    current_score["constraint_penalty"],
+                    current_score["overlap_penalty"],
+                    current_score["net_length_est"],
+                )
+            )
 
         T *= cooling
 

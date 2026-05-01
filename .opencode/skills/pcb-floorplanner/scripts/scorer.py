@@ -5,6 +5,7 @@ Importable as a module or run standalone for a quick score check.
 
 Usage: python scorer.py --run_id 1
 """
+
 import argparse, json, math, sys
 from pathlib import Path
 
@@ -24,7 +25,8 @@ def load_run(conn, run_id):
                FROM placements p
                JOIN component_geometry g ON g.component_id=p.component_id
                JOIN components c ON c.id=p.component_id
-               WHERE p.run_id=?""", (run_id,)
+               WHERE p.run_id=?""",
+            (run_id,),
         ).fetchall()
     }
 
@@ -33,7 +35,8 @@ def load_run(conn, run_id):
                   ct.min_dist_mm, ct.max_dist_mm, ct.weight, ct.hard
            FROM constraints ct
            JOIN optimization_runs r ON r.version_id=ct.version_id
-           WHERE r.id=?""", (run_id,)
+           WHERE r.id=?""",
+        (run_id,),
     ).fetchall()
 
     nets = conn.execute(
@@ -41,7 +44,8 @@ def load_run(conn, run_id):
            FROM net_connections nc
            JOIN components c ON nc.component_id=c.id
            JOIN optimization_runs r ON r.version_id=c.version_id
-           WHERE r.id=?""", (run_id,)
+           WHERE r.id=?""",
+        (run_id,),
     ).fetchall()
 
     return placements, constraints, nets
@@ -120,10 +124,14 @@ def score(placements, constraints, nets, keep_outs=None):
         for j in range(i + 1, len(ids)):
             pa, pb = placements[ids[i]], placements[ids[j]]
             # axis-aligned bounding box overlap with courtyard
-            ax0 = pa["x"] - pa["cyd"]; ax1 = pa["x"] + pa["w"] + pa["cyd"]
-            ay0 = pa["y"] - pa["cyd"]; ay1 = pa["y"] + pa["h"] + pa["cyd"]
-            bx0 = pb["x"] - pb["cyd"]; bx1 = pb["x"] + pb["w"] + pb["cyd"]
-            by0 = pb["y"] - pb["cyd"]; by1 = pb["y"] + pb["h"] + pb["cyd"]
+            ax0 = pa["x"] - pa["cyd"]
+            ax1 = pa["x"] + pa["w"] + pa["cyd"]
+            ay0 = pa["y"] - pa["cyd"]
+            ay1 = pa["y"] + pa["h"] + pa["cyd"]
+            bx0 = pb["x"] - pb["cyd"]
+            bx1 = pb["x"] + pb["w"] + pb["cyd"]
+            by0 = pb["y"] - pb["cyd"]
+            by1 = pb["y"] + pb["h"] + pb["cyd"]
             if ax0 < bx1 and ax1 > bx0 and ay0 < by1 and ay1 > by0:
                 overlap_x = min(ax1, bx1) - max(ax0, bx0)
                 overlap_y = min(ay1, by1) - max(ay0, by0)

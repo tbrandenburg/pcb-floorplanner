@@ -38,6 +38,7 @@ Read the full step-by-step reference before starting:
 ## Execution pattern
 
 For each LLM step:
+
 1. Read required DB context (run `db_read_*.py` script, parse JSON output)
 2. Reason + optionally call `web_search.py` for datasheet/spec lookups
 3. Produce structured JSON payload
@@ -46,6 +47,7 @@ For each LLM step:
 6. Proceed to next step
 
 For each Python step:
+
 - Run the named script directly, check exit code 0
 - Parse JSON stdout for confirmation counts
 
@@ -87,6 +89,7 @@ python scripts/db_lock_version.py --version_id 1
 ## LLM step guidelines
 
 ### Step 0.5 — Hardware Architecture
+
 - Decompose into: Compute, Memory, Power, IO, Clocking, Debug, RF blocks
 - For each block: name the preferred IC family + rationale (cost, ecosystem, thermal)
 - Flag critical interfaces: bus type + speed (e.g. LPDDR4X @ 3200 MT/s, PCIe Gen2)
@@ -95,6 +98,7 @@ python scripts/db_lock_version.py --version_id 1
 - Web search: `"{device} hardware design guide"`, `"{SoC} reference schematic"`
 
 ### Step 1 — BOM + Netlist
+
 - Use `functional_blocks` as the IC selection guide, not free invention
 - Net types: PWR (rails), GND, SIG (single-ended), DIFF (differential pairs)
 - Requirements key-value pairs to always consider:
@@ -104,6 +108,7 @@ python scripts/db_lock_version.py --version_id 1
   - `max_temp_c: <N>` — thermal constraint
 
 ### Step 4 — Constraint Derivation
+
 - NEAR constraints: decoupling caps ≤2 mm, crystal ≤5 mm, DDR topology matched
 - FAR constraints: switching regulator >10 mm from ADC; RF >10 mm from digital logic
 - FIXED: all edge connectors (USB, HDMI, Ethernet, power jack)
@@ -112,11 +117,15 @@ python scripts/db_lock_version.py --version_id 1
 - Always include a reason string — used verbatim in violation reports
 
 ### Step 9 — LLM Review
+
 Read violations via:
+
 ```bash
 python scripts/db_read_violations.py --run_id <id>
 ```
+
 Categorise:
+
 - `delta_mm < -5` AND `hard=true` → must fix, MODIFY constraints or board area
 - `delta_mm < 0` AND `hard=false` → soft violation, check if acceptable tradeoff
 - All soft violations within 20% of limit → APPROVE
@@ -127,6 +136,7 @@ Choose action: APPROVE / MODIFY / RERUN
 ## Modify cycle (Step 9 → Step 4)
 
 Never unlock a LOCKED version. Instead:
+
 ```bash
 # Create new version
 python scripts/db_write_session.py --prompt "<same prompt>" --model "<model>"
@@ -139,6 +149,7 @@ python scripts/db_lock_version.py --version_id <new_id>
 ## Render output
 
 Step 10 produces in `output/`:
+
 - `floorplan.svg` — vector, layer-coloured, labelled with ref-des
 - `floorplan.png` — cairocffi raster, PCB-green substrate, copper pads
 - `heatmap.png` — occupancy density (highlights congested zones for the layout engineer)

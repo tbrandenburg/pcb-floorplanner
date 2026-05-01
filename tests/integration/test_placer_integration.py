@@ -8,6 +8,7 @@ Covers:
   - fits()→score() consistency: greedy placement implies zero overlap_penalty
   - Keep-out cells are pre-marked and block placement (regression for the J11 bug)
 """
+
 import sys
 import sqlite3
 from pathlib import Path
@@ -30,21 +31,16 @@ def make_test_db(tmp_path, components, keep_outs=None, board=(50.0, 50.0, 1.0)):
     conn = sqlite3.connect(str(db))
     conn.execute("PRAGMA foreign_keys=ON")
 
-    sid = conn.execute(
-        "INSERT INTO design_sessions(prompt, model) VALUES (?,?)", ("test", "m")
-    ).lastrowid
-    vid = conn.execute(
-        "INSERT INTO design_versions(session_id) VALUES (?)", (sid,)
-    ).lastrowid
+    sid = conn.execute("INSERT INTO design_sessions(prompt, model) VALUES (?,?)", ("test", "m")).lastrowid
+    vid = conn.execute("INSERT INTO design_versions(session_id) VALUES (?)", (sid,)).lastrowid
     W, H, RES = board
     conn.execute(
         "INSERT INTO board_outline(version_id, width_mm, height_mm, grid_resolution) VALUES (?,?,?,?)",
         (vid, W, H, RES),
     )
-    for zo in (keep_outs or []):
+    for zo in keep_outs or []:
         conn.execute(
-            "INSERT INTO keep_out_zones(version_id, x_mm, y_mm, width_mm, height_mm, reason)"
-            " VALUES (?,?,?,?,?,?)",
+            "INSERT INTO keep_out_zones(version_id, x_mm, y_mm, width_mm, height_mm, reason) VALUES (?,?,?,?,?,?)",
             (vid, zo[0], zo[1], zo[2], zo[3], zo[4]),
         )
 
@@ -55,21 +51,19 @@ def make_test_db(tmp_path, components, keep_outs=None, board=(50.0, 50.0, 1.0)):
             (vid, name, ctype),
         ).lastrowid
         conn.execute(
-            "INSERT INTO component_geometry(component_id, width_mm, height_mm, courtyard_margin)"
-            " VALUES (?,?,?,?)",
+            "INSERT INTO component_geometry(component_id, width_mm, height_mm, courtyard_margin) VALUES (?,?,?,?)",
             (cid, w, h, cyd),
         )
         comp_ids.append(cid)
 
-    conn.execute(
-        "UPDATE design_versions SET status='LOCKED', hash='h' WHERE id=?", (vid,)
-    )
+    conn.execute("UPDATE design_versions SET status='LOCKED', hash='h' WHERE id=?", (vid,))
     conn.commit()
     conn.close()
     return str(db), vid, comp_ids
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
+
 
 def load_placements(db, run_id):
     conn = sqlite3.connect(db)
@@ -80,8 +74,7 @@ def load_placements(db, run_id):
         (run_id,),
     ).fetchall()
     conn.close()
-    return {r[0]: {"x": r[1], "y": r[2], "w": r[3], "h": r[4], "cyd": r[5], "name": str(r[0])}
-            for r in rows}
+    return {r[0]: {"x": r[1], "y": r[2], "w": r[3], "h": r[4], "cyd": r[5], "name": str(r[0])} for r in rows}
 
 
 def load_keep_outs(db, version_id):
@@ -96,12 +89,13 @@ def load_keep_outs(db, version_id):
 
 # ── tests ─────────────────────────────────────────────────────────────────────
 
+
 def test_all_components_placed_within_board(tmp_path):
     comps = [
-        ("U1", "SoC",       14, 14, 0.5),
-        ("U2", "PMIC",       6,  6, 0.5),
-        ("U3", "Memory",     8,  4, 0.5),
-        ("J1", "Connector",  5, 10, 0.5),
+        ("U1", "SoC", 14, 14, 0.5),
+        ("U2", "PMIC", 6, 6, 0.5),
+        ("U3", "Memory", 8, 4, 0.5),
+        ("J1", "Connector", 5, 10, 0.5),
     ]
     db, vid, _ = make_test_db(tmp_path, comps, board=(50.0, 50.0, 1.0))
     result = greedy_place(vid, db)
@@ -124,11 +118,11 @@ def test_no_component_overlaps_keep_out_zone(tmp_path):
         (40, 40, 10, 10, "corner BR"),
     ]
     comps = [
-        ("U1", "SoC",    12, 12, 0.5),
-        ("U2", "PMIC",    6,  6, 0.5),
-        ("U3", "Memory",  8,  4, 0.5),
-        ("U4", "IC",      4,  4, 0.5),
-        ("U5", "IC",      4,  4, 0.5),
+        ("U1", "SoC", 12, 12, 0.5),
+        ("U2", "PMIC", 6, 6, 0.5),
+        ("U3", "Memory", 8, 4, 0.5),
+        ("U4", "IC", 4, 4, 0.5),
+        ("U5", "IC", 4, 4, 0.5),
     ]
     db, vid, _ = make_test_db(tmp_path, comps, keep_outs=keep_outs, board=(50.0, 50.0, 1.0))
     result = greedy_place(vid, db)
@@ -151,12 +145,12 @@ def test_greedy_placement_has_zero_overlap_penalty(tmp_path):
     must result in zero continuous-space overlap_penalty from the scorer.
     """
     comps = [
-        ("U1", "SoC",    10, 10, 0.5),
-        ("U2", "PMIC",    6,  6, 0.5),
-        ("U3", "Memory",  8,  4, 0.5),
-        ("U4", "IC",      5,  5, 0.5),
-        ("U5", "IC",      4,  4, 0.5),
-        ("U6", "IC",      3,  3, 0.5),
+        ("U1", "SoC", 10, 10, 0.5),
+        ("U2", "PMIC", 6, 6, 0.5),
+        ("U3", "Memory", 8, 4, 0.5),
+        ("U4", "IC", 5, 5, 0.5),
+        ("U5", "IC", 4, 4, 0.5),
+        ("U6", "IC", 3, 3, 0.5),
     ]
     db, vid, _ = make_test_db(tmp_path, comps, board=(50.0, 50.0, 1.0))
     result = greedy_place(vid, db)

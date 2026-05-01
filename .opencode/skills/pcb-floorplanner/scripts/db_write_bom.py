@@ -20,8 +20,10 @@ Input JSON schema:
 }
 Prints: {"components": N, "nets": N, "connections": N, "requirements": N}
 """
+
 import argparse, json, sys
 from pathlib import Path
+
 # resolve db/ by walking up to repo root (db/db_init.py)
 _here = Path(__file__).resolve()
 _db_dir = next(p / "db" for p in _here.parents if (p / "db" / "db_init.py").exists())

@@ -14,8 +14,10 @@ Input JSON schema:
   ]
 }
 """
+
 import argparse, json, sys
 from pathlib import Path
+
 # resolve db/ by walking up to repo root (db/db_init.py)
 _here = Path(__file__).resolve()
 _db_dir = next(p / "db" for p in _here.parents if (p / "db" / "db_init.py").exists())
@@ -54,17 +56,18 @@ def write_board(data: dict, db_path=DEFAULT_DB) -> dict:
             # mount hole keep-outs are intentionally centred on holes — skip those
             if "mount hole" in z.get("reason", ""):
                 continue
-            if hx0 < z["x_mm"] + z["width_mm"] and hx1 > z["x_mm"] \
-                    and hy0 < z["y_mm"] + z["height_mm"] and hy1 > z["y_mm"]:
+            if (
+                hx0 < z["x_mm"] + z["width_mm"]
+                and hx1 > z["x_mm"]
+                and hy0 < z["y_mm"] + z["height_mm"]
+                and hy1 > z["y_mm"]
+            ):
                 raise ValueError(
-                    f"Mount hole at ({h['x_mm']},{h['y_mm']}) annular ring overlaps "
-                    f"keep-out '{z['reason']}'"
+                    f"Mount hole at ({h['x_mm']},{h['y_mm']}) annular ring overlaps keep-out '{z['reason']}'"
                 )
         # validate hole is within board minus annular clearance
         if hx0 < 0 or hx1 > b["width_mm"] or hy0 < 0 or hy1 > b["height_mm"]:
-            raise ValueError(
-                f"Mount hole at ({h['x_mm']},{h['y_mm']}) annular ring exceeds board boundary"
-            )
+            raise ValueError(f"Mount hole at ({h['x_mm']},{h['y_mm']}) annular ring exceeds board boundary")
         conn.execute(
             "INSERT INTO mount_holes(version_id, x_mm, y_mm, diameter_mm) VALUES (?,?,?,?)",
             (vid, h["x_mm"], h["y_mm"], h["diameter_mm"]),

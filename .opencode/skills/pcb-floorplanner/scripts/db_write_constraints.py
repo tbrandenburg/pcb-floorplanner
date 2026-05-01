@@ -28,8 +28,10 @@ Input JSON schema:
   ]
 }
 """
+
 import argparse, json, sys
 from pathlib import Path
+
 # resolve db/ by walking up to repo root (db/db_init.py)
 _here = Path(__file__).resolve()
 _db_dir = next(p / "db" for p in _here.parents if (p / "db" / "db_init.py").exists())
@@ -41,9 +43,7 @@ def write_constraints(data: dict, db_path=DEFAULT_DB) -> dict:
     conn = connect(db_path)
     vid = data["version_id"]
 
-    rows = conn.execute(
-        "SELECT id, name FROM components WHERE version_id=?", (vid,)
-    ).fetchall()
+    rows = conn.execute("SELECT id, name FROM components WHERE version_id=?", (vid,)).fetchall()
     comp_map = {name: cid for cid, name in rows}
 
     count = 0
@@ -51,9 +51,17 @@ def write_constraints(data: dict, db_path=DEFAULT_DB) -> dict:
         comp_b_id = comp_map[c["comp_b"]] if c.get("comp_b") else None
         conn.execute(
             "INSERT INTO constraints(version_id, type, comp_a_id, comp_b_id, min_dist_mm, max_dist_mm, weight, hard, reason) VALUES (?,?,?,?,?,?,?,?,?)",
-            (vid, c["type"], comp_map[c["comp_a"]], comp_b_id,
-             c.get("min_dist_mm"), c.get("max_dist_mm"),
-             c.get("weight", 1.0), c.get("hard", 0), c["reason"]),
+            (
+                vid,
+                c["type"],
+                comp_map[c["comp_a"]],
+                comp_b_id,
+                c.get("min_dist_mm"),
+                c.get("max_dist_mm"),
+                c.get("weight", 1.0),
+                c.get("hard", 0),
+                c["reason"],
+            ),
         )
         count += 1
 

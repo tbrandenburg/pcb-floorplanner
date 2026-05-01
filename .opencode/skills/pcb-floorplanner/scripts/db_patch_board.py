@@ -27,6 +27,7 @@ JSON schema (all keys optional — only provided keys are updated):
   }
 }
 """
+
 import argparse, json, sys
 from pathlib import Path
 
@@ -47,9 +48,7 @@ def _drop_triggers(conn, triggers):
     """Drop immutability triggers, return their DDL for recreation."""
     saved = {}
     for name in triggers:
-        row = conn.execute(
-            "SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?", (name,)
-        ).fetchone()
+        row = conn.execute("SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?", (name,)).fetchone()
         if row and row[0]:
             saved[name] = row[0]
             conn.execute(f"DROP TRIGGER IF EXISTS {name}")
@@ -65,9 +64,7 @@ def patch_board(version_id, data, db_path=DEFAULT_DB):
     conn = connect(db_path)
 
     # Verify version exists
-    row = conn.execute(
-        "SELECT status FROM design_versions WHERE id=?", (version_id,)
-    ).fetchone()
+    row = conn.execute("SELECT status FROM design_versions WHERE id=?", (version_id,)).fetchone()
     if not row:
         raise ValueError(f"design_versions id={version_id} not found")
 
@@ -77,8 +74,7 @@ def patch_board(version_id, data, db_path=DEFAULT_DB):
     try:
         if "board" in data:
             b = data["board"]
-            fields = {k: v for k, v in b.items()
-                      if k in ("width_mm", "height_mm", "grid_resolution", "layer_count")}
+            fields = {k: v for k, v in b.items() if k in ("width_mm", "height_mm", "grid_resolution", "layer_count")}
             if fields:
                 set_clause = ", ".join(f"{k}=?" for k in fields)
                 conn.execute(

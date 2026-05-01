@@ -4,8 +4,10 @@ Read violations for a run, joined with constraint reasons.
 Usage: python db_read_violations.py --run_id 1
 Prints: JSON list of violations with human-readable context for LLM review.
 """
+
 import argparse, json, sys
 from pathlib import Path
+
 # resolve db/ by walking up to repo root (db/db_init.py)
 _here = Path(__file__).resolve()
 _db_dir = next(p / "db" for p in _here.parents if (p / "db" / "db_init.py").exists())
@@ -18,7 +20,8 @@ def read_violations(run_id: int, db_path=DEFAULT_DB) -> dict:
 
     score = conn.execute(
         "SELECT final_penalty, violation_count, hard_violation_count, net_length_total "
-        "FROM placement_score WHERE run_id=?", (run_id,)
+        "FROM placement_score WHERE run_id=?",
+        (run_id,),
     ).fetchone()
 
     violations = conn.execute(

@@ -1,4 +1,5 @@
 """db_summary.py — prints a human-readable summary of the live floorplan DB."""
+
 import sqlite3
 import sys
 from pathlib import Path
@@ -9,13 +10,12 @@ if len(sys.argv) > 1:
 
 conn = sqlite3.connect(str(DB))
 
-n_comp  = conn.execute("SELECT COUNT(*) FROM components").fetchone()[0]
-n_net   = conn.execute("SELECT COUNT(*) FROM nets").fetchone()[0]
+n_comp = conn.execute("SELECT COUNT(*) FROM components").fetchone()[0]
+n_net = conn.execute("SELECT COUNT(*) FROM nets").fetchone()[0]
 n_const = conn.execute("SELECT COUNT(*) FROM constraints").fetchone()[0]
-n_runs  = conn.execute("SELECT COUNT(*) FROM optimization_runs").fetchone()[0]
-score   = conn.execute(
-    "SELECT final_penalty, violation_count, net_length_total "
-    "FROM placement_score ORDER BY run_id DESC LIMIT 1"
+n_runs = conn.execute("SELECT COUNT(*) FROM optimization_runs").fetchone()[0]
+score = conn.execute(
+    "SELECT final_penalty, violation_count, net_length_total FROM placement_score ORDER BY run_id DESC LIMIT 1"
 ).fetchone()
 
 print(f"  Components : {n_comp}")

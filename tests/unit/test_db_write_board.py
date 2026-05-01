@@ -8,6 +8,7 @@ Covers:
   - mount hole inside its own mount-hole keep-out does NOT raise (correct design)
   - valid board data writes without error
 """
+
 import pytest
 import sys
 import sqlite3
@@ -26,9 +27,7 @@ def make_db_path(tmp_path):
     # seed a session + version
     conn = sqlite3.connect(str(db))
     conn.execute("PRAGMA foreign_keys=ON")
-    sid = conn.execute(
-        "INSERT INTO design_sessions(prompt, model) VALUES (?,?)", ("t", "m")
-    ).lastrowid
+    sid = conn.execute("INSERT INTO design_sessions(prompt, model) VALUES (?,?)", ("t", "m")).lastrowid
     conn.execute("INSERT INTO design_versions(session_id) VALUES (?)", (sid,))
     conn.commit()
     conn.close()
@@ -40,12 +39,15 @@ BOARD = {"width_mm": 85.0, "height_mm": 56.0, "grid_resolution": 1.0, "layer_cou
 
 def test_valid_board_writes_successfully(tmp_path):
     db = make_db_path(tmp_path)
-    result = write_board({
-        "version_id": 1,
-        "board": BOARD,
-        "keep_out_zones": [{"x_mm": 0, "y_mm": 0, "width_mm": 7, "height_mm": 7, "reason": "mount hole TL"}],
-        "mount_holes": [{"x_mm": 3.5, "y_mm": 3.5, "diameter_mm": 2.7}],
-    }, db)
+    result = write_board(
+        {
+            "version_id": 1,
+            "board": BOARD,
+            "keep_out_zones": [{"x_mm": 0, "y_mm": 0, "width_mm": 7, "height_mm": 7, "reason": "mount hole TL"}],
+            "mount_holes": [{"x_mm": 3.5, "y_mm": 3.5, "diameter_mm": 2.7}],
+        },
+        db,
+    )
     assert result["keep_out_zones"] == 1
     assert result["mount_holes"] == 1
 
@@ -53,60 +55,75 @@ def test_valid_board_writes_successfully(tmp_path):
 def test_keep_out_exceeding_width_raises(tmp_path):
     db = make_db_path(tmp_path)
     with pytest.raises(ValueError, match="exceeds board boundary"):
-        write_board({
-            "version_id": 1,
-            "board": BOARD,
-            "keep_out_zones": [{"x_mm": 80, "y_mm": 0, "width_mm": 10, "height_mm": 5, "reason": "bad"}],
-            "mount_holes": [],
-        }, db)
+        write_board(
+            {
+                "version_id": 1,
+                "board": BOARD,
+                "keep_out_zones": [{"x_mm": 80, "y_mm": 0, "width_mm": 10, "height_mm": 5, "reason": "bad"}],
+                "mount_holes": [],
+            },
+            db,
+        )
 
 
 def test_keep_out_exceeding_height_raises(tmp_path):
     db = make_db_path(tmp_path)
     with pytest.raises(ValueError, match="exceeds board boundary"):
-        write_board({
-            "version_id": 1,
-            "board": BOARD,
-            "keep_out_zones": [{"x_mm": 0, "y_mm": 52, "width_mm": 5, "height_mm": 10, "reason": "bad"}],
-            "mount_holes": [],
-        }, db)
+        write_board(
+            {
+                "version_id": 1,
+                "board": BOARD,
+                "keep_out_zones": [{"x_mm": 0, "y_mm": 52, "width_mm": 5, "height_mm": 10, "reason": "bad"}],
+                "mount_holes": [],
+            },
+            db,
+        )
 
 
 def test_mount_hole_annular_ring_off_board_raises(tmp_path):
     db = make_db_path(tmp_path)
     with pytest.raises(ValueError, match="annular ring exceeds board boundary"):
-        write_board({
-            "version_id": 1,
-            "board": BOARD,
-            "keep_out_zones": [],
-            # hole at x=0.1, radius=1.35+0.5=1.85 → extends to x=-1.75
-            "mount_holes": [{"x_mm": 0.1, "y_mm": 28.0, "diameter_mm": 2.7}],
-        }, db)
+        write_board(
+            {
+                "version_id": 1,
+                "board": BOARD,
+                "keep_out_zones": [],
+                # hole at x=0.1, radius=1.35+0.5=1.85 → extends to x=-1.75
+                "mount_holes": [{"x_mm": 0.1, "y_mm": 28.0, "diameter_mm": 2.7}],
+            },
+            db,
+        )
 
 
 def test_mount_hole_overlapping_non_mount_keep_out_raises(tmp_path):
     db = make_db_path(tmp_path)
     with pytest.raises(ValueError, match="annular ring overlaps keep-out"):
-        write_board({
-            "version_id": 1,
-            "board": BOARD,
-            "keep_out_zones": [
-                {"x_mm": 0, "y_mm": 0, "width_mm": 85, "height_mm": 1.5, "reason": "board edge margin top"},
-            ],
-            # hole at y=1.0, annular extends to y=-0.85 → overlaps board edge margin
-            "mount_holes": [{"x_mm": 42.5, "y_mm": 1.0, "diameter_mm": 2.7}],
-        }, db)
+        write_board(
+            {
+                "version_id": 1,
+                "board": BOARD,
+                "keep_out_zones": [
+                    {"x_mm": 0, "y_mm": 0, "width_mm": 85, "height_mm": 1.5, "reason": "board edge margin top"},
+                ],
+                # hole at y=1.0, annular extends to y=-0.85 → overlaps board edge margin
+                "mount_holes": [{"x_mm": 42.5, "y_mm": 1.0, "diameter_mm": 2.7}],
+            },
+            db,
+        )
 
 
 def test_mount_hole_inside_own_keep_out_does_not_raise(tmp_path):
     """Mount holes are intentionally co-located with their corner keep-outs."""
     db = make_db_path(tmp_path)
-    result = write_board({
-        "version_id": 1,
-        "board": BOARD,
-        "keep_out_zones": [
-            {"x_mm": 0, "y_mm": 0, "width_mm": 7, "height_mm": 7, "reason": "mount hole keep-out TL"},
-        ],
-        "mount_holes": [{"x_mm": 3.5, "y_mm": 3.5, "diameter_mm": 2.7}],
-    }, db)
+    result = write_board(
+        {
+            "version_id": 1,
+            "board": BOARD,
+            "keep_out_zones": [
+                {"x_mm": 0, "y_mm": 0, "width_mm": 7, "height_mm": 7, "reason": "mount hole keep-out TL"},
+            ],
+            "mount_holes": [{"x_mm": 3.5, "y_mm": 3.5, "diameter_mm": 2.7}],
+        },
+        db,
+    )
     assert result["mount_holes"] == 1

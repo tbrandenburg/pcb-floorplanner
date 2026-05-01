@@ -10,7 +10,7 @@ database (`db/floorplan.db`). Steps alternate between LLM reasoning and determin
 
 ## Directory structure
 
-```
+```text
 db/                          Schema, DB helpers, and legacy schema tests
   schema.sql                 24-table SQLite schema (FKs, CHECKs, immutability triggers)
   db_init.py                 Initialise DB from schema — connect() + init() + DEFAULT_DB

@@ -2,6 +2,7 @@
 Shared fixtures for all tests.
 Provides in-memory SQLite DBs with schema applied, and a minimal seeded design.
 """
+
 import sys
 import sqlite3
 import pytest
@@ -27,9 +28,7 @@ def seed_session(conn) -> tuple[int, int]:
         "INSERT INTO design_sessions(prompt, model) VALUES (?,?)",
         ("test prompt", "test-model"),
     ).lastrowid
-    vid = conn.execute(
-        "INSERT INTO design_versions(session_id) VALUES (?)", (sid,)
-    ).lastrowid
+    vid = conn.execute("INSERT INTO design_versions(session_id) VALUES (?)", (sid,)).lastrowid
     conn.commit()
     return sid, vid
 
@@ -45,8 +44,7 @@ def seed_component(conn, version_id, name="MCU", ctype="SoC") -> int:
 
 def seed_geometry(conn, comp_id, w=10.0, h=10.0, cyd=0.5) -> None:
     conn.execute(
-        "INSERT INTO component_geometry(component_id, width_mm, height_mm, courtyard_margin)"
-        " VALUES (?,?,?,?)",
+        "INSERT INTO component_geometry(component_id, width_mm, height_mm, courtyard_margin) VALUES (?,?,?,?)",
         (comp_id, w, h, cyd),
     )
     conn.commit()
@@ -61,6 +59,7 @@ def lock_version(conn, version_id) -> None:
 
 
 # ── pytest fixtures ───────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def db():
@@ -78,8 +77,7 @@ def seeded_db():
     seed_geometry(conn, cid1, w=10.0, h=10.0, cyd=0.5)
     seed_geometry(conn, cid2, w=6.0, h=6.0, cyd=0.5)
     conn.execute(
-        "INSERT INTO board_outline(version_id, width_mm, height_mm, grid_resolution)"
-        " VALUES (?,?,?,?)",
+        "INSERT INTO board_outline(version_id, width_mm, height_mm, grid_resolution) VALUES (?,?,?,?)",
         (vid, 85.0, 56.0, 1.0),
     )
     conn.commit()

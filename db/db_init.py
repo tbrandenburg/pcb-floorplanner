@@ -1,4 +1,5 @@
 """Create (or verify) the floorplan SQLite database from schema.sql."""
+
 import sqlite3
 from pathlib import Path
 
@@ -22,9 +23,7 @@ def init(db_path: Path = DEFAULT_DB) -> sqlite3.Connection:
 
 if __name__ == "__main__":
     conn = init()
-    tables = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-    ).fetchall()
+    tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall()
     print(f"DB initialised: {DEFAULT_DB}")
     print(f"{len(tables)} tables:")
     for (t,) in tables:

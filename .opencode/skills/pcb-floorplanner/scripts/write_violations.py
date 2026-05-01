@@ -5,6 +5,7 @@ Compute final violations from best placement, write violations + placement_score
 Usage: python write_violations.py --run_id 1
 Prints: {"violations": N, "hard_violations": N, "final_penalty": F}
 """
+
 import argparse, json, sys
 from pathlib import Path
 
@@ -26,12 +27,13 @@ def write_violations(run_id, db_path=DEFAULT_DB):
         for row in conn.execute(
             """SELECT ct.id, ct.hard FROM constraints ct
                JOIN optimization_runs r ON r.version_id=ct.version_id
-               WHERE r.id=?""", (run_id,)
+               WHERE r.id=?""",
+            (run_id,),
         ).fetchall()
     }
 
     hard_count = 0
-    for (con_id, actual_dist, delta) in result["violations"]:
+    for con_id, actual_dist, delta in result["violations"]:
         is_hard = con_meta.get(con_id, 0)
         if is_hard and delta < 0:
             hard_count += 1
@@ -42,11 +44,13 @@ def write_violations(run_id, db_path=DEFAULT_DB):
 
     conn.execute(
         "INSERT INTO placement_score(run_id, final_penalty, violation_count, hard_violation_count, net_length_total) VALUES (?,?,?,?,?)",
-        (run_id,
-         round(result["total_penalty"], 4),
-         len(result["violations"]),
-         hard_count,
-         round(result["net_length_est"], 4)),
+        (
+            run_id,
+            round(result["total_penalty"], 4),
+            len(result["violations"]),
+            hard_count,
+            round(result["net_length_est"], 4),
+        ),
     )
     conn.commit()
     conn.close()

@@ -6,6 +6,7 @@ Creates optimization_runs row, writes placements + occupancy_grid.
 Usage: python placer_greedy.py --version_id 1
 Prints: {"run_id": N, "placed": N, "fixed": N}
 """
+
 import argparse, json, math, sys
 from pathlib import Path
 
@@ -17,10 +18,10 @@ from db_init import connect, DEFAULT_DB
 
 # ── data loading ─────────────────────────────────────────────────────────────
 
+
 def load_design(conn, version_id):
     board = conn.execute(
-        "SELECT width_mm, height_mm, grid_resolution FROM board_outline WHERE version_id=?",
-        (version_id,)
+        "SELECT width_mm, height_mm, grid_resolution FROM board_outline WHERE version_id=?", (version_id,)
     ).fetchone()
     if not board:
         raise ValueError("No board_outline for version_id")
@@ -31,15 +32,18 @@ def load_design(conn, version_id):
         for row in conn.execute(
             """SELECT c.id, c.name, g.width_mm, g.height_mm, g.courtyard_margin
                FROM components c JOIN component_geometry g ON g.component_id=c.id
-               WHERE c.version_id=?""", (version_id,)
+               WHERE c.version_id=?""",
+            (version_id,),
         ).fetchall()
     }
 
     fixed_names = {
-        row[0] for row in conn.execute(
+        row[0]
+        for row in conn.execute(
             """SELECT ca.name FROM constraints ct
                JOIN components ca ON ct.comp_a_id=ca.id
-               WHERE ct.version_id=? AND ct.type='FIXED'""", (version_id,)
+               WHERE ct.version_id=? AND ct.type='FIXED'""",
+            (version_id,),
         ).fetchall()
     }
 
@@ -47,19 +51,20 @@ def load_design(conn, version_id):
         """SELECT ca.id, cb.id FROM constraints ct
            JOIN components ca ON ct.comp_a_id=ca.id
            JOIN components cb ON ct.comp_b_id=cb.id
-           WHERE ct.version_id=? AND ct.type='NEAR'""", (version_id,)
+           WHERE ct.version_id=? AND ct.type='NEAR'""",
+        (version_id,),
     ).fetchall()
 
     keep_outs = conn.execute(
-        "SELECT x_mm, y_mm, width_mm, height_mm FROM keep_out_zones WHERE version_id=?",
-        (version_id,)
+        "SELECT x_mm, y_mm, width_mm, height_mm FROM keep_out_zones WHERE version_id=?", (version_id,)
     ).fetchall()
 
     requirements = {}
     for row in conn.execute(
         """SELECT c.name, r.key, r.value FROM requirements r
            JOIN components c ON r.component_id=c.id
-           WHERE c.version_id=?""", (version_id,)
+           WHERE c.version_id=?""",
+        (version_id,),
     ).fetchall():
         requirements.setdefault(row[0], {})[row[1]] = row[2]
 
@@ -67,6 +72,7 @@ def load_design(conn, version_id):
 
 
 # ── occupancy helpers ─────────────────────────────────────────────────────────
+
 
 def cells_for(x, y, w, h, cyd, res):
     """Return grid cells (cx, cy) covered by component including courtyard."""
@@ -99,6 +105,7 @@ def snap(v, res):
 
 # ── fixed-position heuristic ──────────────────────────────────────────────────
 
+
 def fixed_position(name, w, h, W, H, requirements):
     """Place connectors at their required board edge."""
     edge = requirements.get(name, {}).get("edge", "")
@@ -117,14 +124,14 @@ def fixed_position(name, w, h, W, H, requirements):
 
 # ── main greedy placer ────────────────────────────────────────────────────────
 
+
 def greedy_place(version_id, db_path=DEFAULT_DB):
     conn = connect(db_path)
-    W, H, RES, components, fixed_names, near_pairs, keep_outs, requirements = \
-        load_design(conn, version_id)
+    W, H, RES, components, fixed_names, near_pairs, keep_outs, requirements = load_design(conn, version_id)
 
     # Pre-mark keep-out cells
     occupied = {}
-    for (kx, ky, kw, kh) in keep_outs:
+    for kx, ky, kw, kh in keep_outs:
         for cx in range(int(kx / RES), math.ceil((kx + kw) / RES)):
             for cy in range(int(ky / RES), math.ceil((ky + kh) / RES)):
                 occupied[(cx, cy)] = -1  # -1 = keep-out
@@ -153,7 +160,7 @@ def greedy_place(version_id, db_path=DEFAULT_DB):
 
     # --- Pass 2: NEAR-clustered free components (place near their anchor) ---
     near_by_anchor = {}
-    for (a_id, b_id) in near_pairs:
+    for a_id, b_id in near_pairs:
         if a_id in placements and b_id not in placements:
             near_by_anchor.setdefault(a_id, []).append(b_id)
 
@@ -183,15 +190,11 @@ def greedy_place(version_id, db_path=DEFAULT_DB):
         if comp_id in placements:
             continue
         placed = False
-        for row_start_y in [snap(y, RES) for y in
-                             [i * RES for i in range(2, int(H / RES) - 2)]]:
-            for col_x in [snap(x, RES) for x in
-                          [i * RES for i in range(2, int(W / RES) - 2)]]:
-                if fits(col_x, row_start_y, comp["w"], comp["h"], comp["cyd"],
-                        W, H, occupied, RES):
+        for row_start_y in [snap(y, RES) for y in [i * RES for i in range(2, int(H / RES) - 2)]]:
+            for col_x in [snap(x, RES) for x in [i * RES for i in range(2, int(W / RES) - 2)]]:
+                if fits(col_x, row_start_y, comp["w"], comp["h"], comp["cyd"], W, H, occupied, RES):
                     placements[comp_id] = (col_x, row_start_y)
-                    place_at(comp_id, col_x, row_start_y, comp["w"], comp["h"],
-                              comp["cyd"], occupied, RES)
+                    place_at(comp_id, col_x, row_start_y, comp["w"], comp["h"], comp["cyd"], occupied, RES)
                     placed = True
                     break
             if placed:

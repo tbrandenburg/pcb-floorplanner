@@ -2,9 +2,11 @@ PYTHON     := python3
 DB         := db/floorplan.db
 SCHEMA     := db/schema.sql
 SCRIPTS    := .opencode/skills/pcb-floorplanner/scripts
+MD_FILES   := AGENTS.md README.md $(wildcard .opencode/skills/pcb-floorplanner/*.md) \
+              $(wildcard .opencode/skills/pcb-floorplanner/references/*.md)
 VENV_PYTHON := $(shell command -v python3)
 
-.PHONY: help db-init db-verify db-status db-summary lint test
+.PHONY: help db-init db-verify db-status db-summary format lint test qa
 
 help:
 	@echo ""
@@ -14,8 +16,10 @@ help:
 	@echo "  db-verify    Run schema integrity tests against live DB"
 	@echo "  db-status    Show design versions and optimization runs in live DB"
 	@echo "  db-summary   Show component count, violations, and latest score"
-	@echo "  lint         Run ruff linter over all Python sources"
+	@echo "  format       Auto-format Python (ruff) and Markdown (markdownlint --fix)"
+	@echo "  lint         Check Python (ruff) and Markdown (markdownlint)"
 	@echo "  test         Run full test suite (unit + integration)"
+	@echo "  qa           Run format, lint, and test"
 	@echo ""
 
 # ── db-init ───────────────────────────────────────────────────────────────────
@@ -47,7 +51,16 @@ db-summary:
 # ── lint ──────────────────────────────────────────────────────────────────────
 lint:
 	$(PYTHON) -m ruff check db/ $(SCRIPTS)/ tests/
+	markdownlint --config .markdownlint.json $(MD_FILES)
+
+# ── format ────────────────────────────────────────────────────────────────────
+format:
+	$(PYTHON) -m ruff format db/ $(SCRIPTS)/ tests/
+	markdownlint --config .markdownlint.json --fix $(MD_FILES)
 
 # ── test ──────────────────────────────────────────────────────────────────────
 test:
 	$(PYTHON) -m pytest tests/ -v --tb=short
+
+# ── qa ────────────────────────────────────────────────────────────────────────
+qa: format lint test

@@ -7,6 +7,7 @@ Usage: python render_png.py --run_id 1 --out_dir output/
 Produces: floorplan.png, heatmap.png
 Writes paths to render_artifacts table.
 """
+
 import argparse, json, math, sys
 from pathlib import Path
 
@@ -18,14 +19,15 @@ from db_init import connect, DEFAULT_DB
 import cairocffi as cairo
 import numpy as np
 
-SCALE = 8   # px per mm
+SCALE = 8  # px per mm
 
 
 def load_render_data(conn, run_id):
     board = conn.execute(
         """SELECT b.width_mm, b.height_mm, b.grid_resolution
            FROM board_outline b JOIN optimization_runs r ON r.version_id=b.version_id
-           WHERE r.id=?""", (run_id,)
+           WHERE r.id=?""",
+        (run_id,),
     ).fetchone()
 
     placements = conn.execute(
@@ -34,57 +36,57 @@ def load_render_data(conn, run_id):
            FROM placements p
            JOIN component_geometry g ON g.component_id=p.component_id
            JOIN components c ON c.id=p.component_id
-           WHERE p.run_id=?""", (run_id,)
+           WHERE p.run_id=?""",
+        (run_id,),
     ).fetchall()
 
     keep_outs = conn.execute(
         """SELECT k.x_mm, k.y_mm, k.width_mm, k.height_mm
            FROM keep_out_zones k JOIN optimization_runs r ON r.version_id=k.version_id
-           WHERE r.id=?""", (run_id,)
+           WHERE r.id=?""",
+        (run_id,),
     ).fetchall()
 
     mount_holes = conn.execute(
         """SELECT m.x_mm, m.y_mm, m.diameter_mm
            FROM mount_holes m JOIN optimization_runs r ON r.version_id=m.version_id
-           WHERE r.id=?""", (run_id,)
+           WHERE r.id=?""",
+        (run_id,),
     ).fetchall()
 
-    violations = conn.execute(
-        "SELECT constraint_id, delta_mm FROM violations WHERE run_id=?", (run_id,)
-    ).fetchall()
+    violations = conn.execute("SELECT constraint_id, delta_mm FROM violations WHERE run_id=?", (run_id,)).fetchall()
 
-    grid_cells = conn.execute(
-        "SELECT cell_x, cell_y FROM occupancy_grid WHERE run_id=?", (run_id,)
-    ).fetchall()
+    grid_cells = conn.execute("SELECT cell_x, cell_y FROM occupancy_grid WHERE run_id=?", (run_id,)).fetchall()
 
     return board, placements, keep_outs, mount_holes, violations, grid_cells
 
 
 # ── colour palette ────────────────────────────────────────────────────────────
-PCB_GREEN   = (0.10, 0.28, 0.10)
-BOARD_EDGE  = (0.00, 1.00, 0.00)
-KEEPOUT     = (0.80, 0.10, 0.10, 0.35)
-COPPER      = (0.87, 0.71, 0.00)
-SILK        = (1.00, 1.00, 1.00)
-FIXED_FILL  = (0.20, 0.50, 0.80, 0.75)
-FREE_FILL   = (0.20, 0.70, 0.30, 0.65)
-VIOLATION   = (1.00, 0.20, 0.20, 0.50)
-HOLE        = (0.05, 0.05, 0.05)
+PCB_GREEN = (0.10, 0.28, 0.10)
+BOARD_EDGE = (0.00, 1.00, 0.00)
+KEEPOUT = (0.80, 0.10, 0.10, 0.35)
+COPPER = (0.87, 0.71, 0.00)
+SILK = (1.00, 1.00, 1.00)
+FIXED_FILL = (0.20, 0.50, 0.80, 0.75)
+FREE_FILL = (0.20, 0.70, 0.30, 0.65)
+VIOLATION = (1.00, 0.20, 0.20, 0.50)
+HOLE = (0.05, 0.05, 0.05)
 
 COMPONENT_COLORS = {
-    "SoC":      (0.85, 0.65, 0.00, 0.85),
-    "SDRAM":    (0.30, 0.60, 0.90, 0.80),
-    "PMIC":     (0.90, 0.40, 0.10, 0.80),
-    "USB-Hub":  (0.60, 0.30, 0.80, 0.75),
-    "GbE-PHY":  (0.20, 0.75, 0.60, 0.75),
-    "HDMI-Redrv":(0.70,0.70, 0.10, 0.75),
-    "USB-PD":   (0.80, 0.50, 0.20, 0.75),
-    "Crystal":  (0.90, 0.90, 0.90, 0.85),
-    "Connector":(0.40, 0.40, 0.80, 0.80),
+    "SoC": (0.85, 0.65, 0.00, 0.85),
+    "SDRAM": (0.30, 0.60, 0.90, 0.80),
+    "PMIC": (0.90, 0.40, 0.10, 0.80),
+    "USB-Hub": (0.60, 0.30, 0.80, 0.75),
+    "GbE-PHY": (0.20, 0.75, 0.60, 0.75),
+    "HDMI-Redrv": (0.70, 0.70, 0.10, 0.75),
+    "USB-PD": (0.80, 0.50, 0.20, 0.75),
+    "Crystal": (0.90, 0.90, 0.90, 0.85),
+    "Connector": (0.40, 0.40, 0.80, 0.80),
 }
 
 
-def mm(v): return v * SCALE
+def mm(v):
+    return v * SCALE
 
 
 def render_floorplan(run_id, out_dir, db_path=DEFAULT_DB):
@@ -96,7 +98,7 @@ def render_floorplan(run_id, out_dir, db_path=DEFAULT_DB):
     W, H = int(W_mm * SCALE), int(H_mm * SCALE)
 
     violated_comps = set()
-    for (con_id, delta) in violations:
+    for con_id, delta in violations:
         if delta < 0:
             violated_comps.add(con_id)
 
@@ -117,12 +119,16 @@ def render_floorplan(run_id, out_dir, db_path=DEFAULT_DB):
     ctx.set_source_rgba(0.15, 0.35, 0.15, 0.4)
     ctx.set_line_width(0.4)
     for gx in range(0, int(W_mm) + 1, 5):
-        ctx.move_to(mm(gx), 0); ctx.line_to(mm(gx), H); ctx.stroke()
+        ctx.move_to(mm(gx), 0)
+        ctx.line_to(mm(gx), H)
+        ctx.stroke()
     for gy in range(0, int(H_mm) + 1, 5):
-        ctx.move_to(0, mm(gy)); ctx.line_to(W, mm(gy)); ctx.stroke()
+        ctx.move_to(0, mm(gy))
+        ctx.line_to(W, mm(gy))
+        ctx.stroke()
 
     # keep-out zones
-    for (kx, ky, kw, kh) in keep_outs:
+    for kx, ky, kw, kh in keep_outs:
         ctx.set_source_rgba(*KEEPOUT)
         ctx.rectangle(mm(kx), mm(ky), mm(kw), mm(kh))
         ctx.fill()
@@ -132,7 +138,7 @@ def render_floorplan(run_id, out_dir, db_path=DEFAULT_DB):
         ctx.stroke()
 
     # mount holes
-    for (hx, hy, hd) in mount_holes:
+    for hx, hy, hd in mount_holes:
         ctx.set_source_rgb(*COPPER)
         ctx.arc(mm(hx), mm(hy), mm(hd / 2 + 0.5), 0, 2 * math.pi)
         ctx.fill()
@@ -201,7 +207,7 @@ def render_heatmap(run_id, out_dir, db_path=DEFAULT_DB):
     rows = int(H_mm / RES)
 
     grid = np.zeros((rows, cols), dtype=float)
-    for (cx, cy) in grid_cells:
+    for cx, cy in grid_cells:
         if 0 <= cx < cols and 0 <= cy < rows:
             grid[cy, cx] += 1.0
 
@@ -246,7 +252,7 @@ def run(run_id, out_dir, db_path=DEFAULT_DB):
     hm = render_heatmap(run_id, out_dir, db_path)
 
     conn = connect(db_path)
-    for (atype, path) in [("PNG", fp), ("HEATMAP", hm)]:
+    for atype, path in [("PNG", fp), ("HEATMAP", hm)]:
         conn.execute(
             "INSERT INTO render_artifacts(run_id, type, file_path) VALUES (?,?,?)",
             (run_id, atype, path),

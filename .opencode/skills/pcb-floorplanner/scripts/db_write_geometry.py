@@ -19,8 +19,10 @@ Input JSON schema:
   ]
 }
 """
+
 import argparse, json, sys
 from pathlib import Path
+
 # resolve db/ by walking up to repo root (db/db_init.py)
 _here = Path(__file__).resolve()
 _db_dir = next(p / "db" for p in _here.parents if (p / "db" / "db_init.py").exists())
@@ -33,9 +35,7 @@ def write_geometry(data: dict, db_path=DEFAULT_DB) -> dict:
     vid = data["version_id"]
 
     # build name → id map for this version
-    rows = conn.execute(
-        "SELECT id, name FROM components WHERE version_id=?", (vid,)
-    ).fetchall()
+    rows = conn.execute("SELECT id, name FROM components WHERE version_id=?", (vid,)).fetchall()
     comp_map = {name: cid for cid, name in rows}
 
     geom_count = pin_count = 0
@@ -43,9 +43,13 @@ def write_geometry(data: dict, db_path=DEFAULT_DB) -> dict:
         cid = comp_map[g["component_name"]]
         conn.execute(
             "INSERT INTO component_geometry(component_id, width_mm, height_mm, courtyard_margin, allowed_rotations) VALUES (?,?,?,?,?)",
-            (cid, g["width_mm"], g["height_mm"],
-             g.get("courtyard_margin", 0.5),
-             g.get("allowed_rotations", "0,90,180,270")),
+            (
+                cid,
+                g["width_mm"],
+                g["height_mm"],
+                g.get("courtyard_margin", 0.5),
+                g.get("allowed_rotations", "0,90,180,270"),
+            ),
         )
         geom_count += 1
         for p in g.get("pins", []):

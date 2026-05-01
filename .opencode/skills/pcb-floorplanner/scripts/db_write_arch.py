@@ -18,8 +18,10 @@ Input JSON schema:
 }
 Prints: {"blocks_written": N, "connections_written": N, "decisions_written": N}
 """
+
 import argparse, json, sys
 from pathlib import Path
+
 # resolve db/ by walking up to repo root (db/db_init.py)
 _here = Path(__file__).resolve()
 _db_dir = next(p / "db" for p in _here.parents if (p / "db" / "db_init.py").exists())
@@ -43,8 +45,7 @@ def write_arch(data: dict, db_path=DEFAULT_DB) -> dict:
     for c in data.get("block_connections", []):
         conn.execute(
             "INSERT INTO block_connections(version_id, from_block_id, to_block_id, interface_type, critical) VALUES (?,?,?,?,?)",
-            (vid, name_to_id[c["from_name"]], name_to_id[c["to_name"]],
-             c["interface_type"], c.get("critical", 0)),
+            (vid, name_to_id[c["from_name"]], name_to_id[c["to_name"]], c["interface_type"], c.get("critical", 0)),
         )
 
     for d in data.get("decisions", []):

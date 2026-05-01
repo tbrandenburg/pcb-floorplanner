@@ -5,8 +5,10 @@ Usage: python db_lock_version.py --version_id 1
 Prints: {"status": "LOCKED", "hash": "...", "components": N, "constraints": N}
 Exits with code 1 if validation fails.
 """
+
 import argparse, hashlib, json, sys
 from pathlib import Path
+
 # resolve db/ by walking up to repo root (db/db_init.py)
 _here = Path(__file__).resolve()
 _db_dir = next(p / "db" for p in _here.parents if (p / "db" / "db_init.py").exists())
@@ -18,9 +20,7 @@ def lock_version(version_id: int, db_path=DEFAULT_DB) -> dict:
     conn = connect(db_path)
 
     # 1. check current status
-    row = conn.execute(
-        "SELECT status FROM design_versions WHERE id=?", (version_id,)
-    ).fetchone()
+    row = conn.execute("SELECT status FROM design_versions WHERE id=?", (version_id,)).fetchone()
     if not row:
         raise ValueError(f"version_id {version_id} not found")
     if row[0] == "LOCKED":
@@ -35,9 +35,7 @@ def lock_version(version_id: int, db_path=DEFAULT_DB) -> dict:
         raise ValueError(f"Missing geometry for: {[m[0] for m in missing]}")
 
     # 3. assert at least one constraint exists
-    n_constraints = conn.execute(
-        "SELECT COUNT(*) FROM constraints WHERE version_id=?", (version_id,)
-    ).fetchone()[0]
+    n_constraints = conn.execute("SELECT COUNT(*) FROM constraints WHERE version_id=?", (version_id,)).fetchone()[0]
     if n_constraints == 0:
         raise ValueError("No constraints defined — run Step 4 first")
 
@@ -57,9 +55,7 @@ def lock_version(version_id: int, db_path=DEFAULT_DB) -> dict:
         (version_id,),
     ).fetchall()
 
-    digest = hashlib.sha256(
-        json.dumps([comp_rows, geom_rows, con_rows], default=str).encode()
-    ).hexdigest()
+    digest = hashlib.sha256(json.dumps([comp_rows, geom_rows, con_rows], default=str).encode()).hexdigest()
 
     # 5. lock
     conn.execute(

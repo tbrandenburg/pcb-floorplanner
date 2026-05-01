@@ -2,12 +2,14 @@
 Schema integrity tests — migrated to tests/unit/.
 Each test is self-contained: uses an in-memory DB, no shared state.
 """
+
 import sqlite3
 import pytest
 from tests.conftest import make_db, seed_session, seed_component, lock_version
 
 
 # ── happy path ────────────────────────────────────────────────────────────────
+
 
 def test_session_and_version_created():
     conn = make_db()
@@ -42,9 +44,7 @@ def test_full_pipeline_inserts():
     # BOM
     cid = seed_component(conn, vid, "MCU")
     cid2 = seed_component(conn, vid, "PMIC")
-    nid = conn.execute(
-        "INSERT INTO nets(version_id, name, type) VALUES (?,?,?)", (vid, "VDD_CORE", "PWR")
-    ).lastrowid
+    nid = conn.execute("INSERT INTO nets(version_id, name, type) VALUES (?,?,?)", (vid, "VDD_CORE", "PWR")).lastrowid
     conn.execute(
         "INSERT INTO net_connections(net_id, component_id, pin_name) VALUES (?,?,?)",
         (nid, cid, "VDD"),
@@ -88,9 +88,7 @@ def test_full_pipeline_inserts():
     lock_version(conn, vid)
 
     # optimization
-    rid = conn.execute(
-        "INSERT INTO optimization_runs(version_id) VALUES (?)", (vid,)
-    ).lastrowid
+    rid = conn.execute("INSERT INTO optimization_runs(version_id) VALUES (?)", (vid,)).lastrowid
     conn.execute(
         "INSERT INTO placements(run_id, component_id, x_mm, y_mm, status) VALUES (?,?,?,?,?)",
         (rid, cid, 10.0, 10.0, "PLACED"),
@@ -135,6 +133,7 @@ def test_full_pipeline_inserts():
 
 # ── FK enforcement ─────────────────────────────────────────────────────────────
 
+
 def test_component_requires_valid_version():
     conn = make_db()
     with pytest.raises(sqlite3.IntegrityError):
@@ -147,9 +146,7 @@ def test_component_requires_valid_version():
 def test_net_connection_requires_valid_component():
     conn = make_db()
     _, vid = seed_session(conn)
-    nid = conn.execute(
-        "INSERT INTO nets(version_id, name, type) VALUES (?,?,?)", (vid, "VDD", "PWR")
-    ).lastrowid
+    nid = conn.execute("INSERT INTO nets(version_id, name, type) VALUES (?,?,?)", (vid, "VDD", "PWR")).lastrowid
     conn.commit()
     with pytest.raises(sqlite3.IntegrityError):
         conn.execute(
@@ -171,6 +168,7 @@ def test_placement_requires_valid_run():
 
 # ── UNIQUE constraints ─────────────────────────────────────────────────────────
 
+
 def test_one_geometry_per_component():
     conn = make_db()
     _, vid = seed_session(conn)
@@ -190,11 +188,9 @@ def test_one_geometry_per_component():
 def test_one_placement_per_component_per_run():
     conn = make_db()
     _, vid = seed_session(conn)
-    cid = seed_component(conn, vid)   # insert component BEFORE locking
+    cid = seed_component(conn, vid)  # insert component BEFORE locking
     lock_version(conn, vid)
-    rid = conn.execute(
-        "INSERT INTO optimization_runs(version_id) VALUES (?)", (vid,)
-    ).lastrowid
+    rid = conn.execute("INSERT INTO optimization_runs(version_id) VALUES (?)", (vid,)).lastrowid
     conn.execute(
         "INSERT INTO placements(run_id, component_id, x_mm, y_mm, status) VALUES (?,?,?,?,?)",
         (rid, cid, 0.0, 0.0, "PLACED"),
@@ -210,12 +206,10 @@ def test_one_placement_per_component_per_run():
 def test_one_component_per_cell_per_run():
     conn = make_db()
     _, vid = seed_session(conn)
-    cid = seed_component(conn, vid, "MCU")    # insert components BEFORE locking
+    cid = seed_component(conn, vid, "MCU")  # insert components BEFORE locking
     cid2 = seed_component(conn, vid, "PMIC")
     lock_version(conn, vid)
-    rid = conn.execute(
-        "INSERT INTO optimization_runs(version_id) VALUES (?)", (vid,)
-    ).lastrowid
+    rid = conn.execute("INSERT INTO optimization_runs(version_id) VALUES (?)", (vid,)).lastrowid
     conn.execute(
         "INSERT INTO occupancy_grid(run_id, cell_x, cell_y, component_id) VALUES (?,?,?,?)",
         (rid, 5, 5, cid),
@@ -232,9 +226,7 @@ def test_one_score_per_run():
     conn = make_db()
     _, vid = seed_session(conn)
     lock_version(conn, vid)
-    rid = conn.execute(
-        "INSERT INTO optimization_runs(version_id) VALUES (?)", (vid,)
-    ).lastrowid
+    rid = conn.execute("INSERT INTO optimization_runs(version_id) VALUES (?)", (vid,)).lastrowid
     conn.execute(
         "INSERT INTO placement_score(run_id, final_penalty, violation_count, hard_violation_count, net_length_total) VALUES (?,?,?,?,?)",
         (rid, 1.0, 0, 0, 10.0),
@@ -248,6 +240,7 @@ def test_one_score_per_run():
 
 
 # ── CHECK constraints ──────────────────────────────────────────────────────────
+
 
 def test_invalid_net_type_rejected():
     conn = make_db()
@@ -273,11 +266,9 @@ def test_invalid_constraint_type_rejected():
 def test_invalid_rotation_rejected():
     conn = make_db()
     _, vid = seed_session(conn)
-    cid = seed_component(conn, vid)   # insert BEFORE locking
+    cid = seed_component(conn, vid)  # insert BEFORE locking
     lock_version(conn, vid)
-    rid = conn.execute(
-        "INSERT INTO optimization_runs(version_id) VALUES (?)", (vid,)
-    ).lastrowid
+    rid = conn.execute("INSERT INTO optimization_runs(version_id) VALUES (?)", (vid,)).lastrowid
     with pytest.raises(sqlite3.IntegrityError):
         conn.execute(
             "INSERT INTO placements(run_id, component_id, x_mm, y_mm, rotation, status) VALUES (?,?,?,?,?,?)",
@@ -296,6 +287,7 @@ def test_zero_board_dimension_rejected():
 
 
 # ── Lock / immutability ────────────────────────────────────────────────────────
+
 
 def test_locked_version_blocks_new_component():
     conn = make_db()
@@ -325,9 +317,7 @@ def test_locked_version_cannot_be_unlocked():
     _, vid = seed_session(conn)
     lock_version(conn, vid)
     with pytest.raises(sqlite3.IntegrityError):
-        conn.execute(
-            "UPDATE design_versions SET status='DRAFT' WHERE id=?", (vid,)
-        )
+        conn.execute("UPDATE design_versions SET status='DRAFT' WHERE id=?", (vid,))
         conn.commit()
 
 
@@ -337,11 +327,7 @@ def test_modify_cycle_requires_new_version():
     sid, vid = seed_session(conn)
     lock_version(conn, vid)
     # create new version for the next iteration
-    conn.execute(
-        "INSERT INTO design_versions(session_id) VALUES (?)", (sid,)
-    ).lastrowid
+    conn.execute("INSERT INTO design_versions(session_id) VALUES (?)", (sid,)).lastrowid
     conn.commit()
-    count = conn.execute(
-        "SELECT COUNT(*) FROM design_versions WHERE session_id=?", (sid,)
-    ).fetchone()[0]
+    count = conn.execute("SELECT COUNT(*) FROM design_versions WHERE session_id=?", (sid,)).fetchone()[0]
     assert count == 2

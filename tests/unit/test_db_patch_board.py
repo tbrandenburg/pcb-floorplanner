@@ -7,6 +7,7 @@ Covers:
   - immutability triggers are recreated even when the patch body raises
   - patching a non-existent version_id raises ValueError
 """
+
 import pytest
 import sys
 import sqlite3
@@ -24,19 +25,13 @@ def make_locked_db(tmp_path):
     init(str(db))
     conn = sqlite3.connect(str(db))
     conn.execute("PRAGMA foreign_keys=ON")
-    sid = conn.execute(
-        "INSERT INTO design_sessions(prompt, model) VALUES (?,?)", ("t", "m")
-    ).lastrowid
-    vid = conn.execute(
-        "INSERT INTO design_versions(session_id) VALUES (?)", (sid,)
-    ).lastrowid
+    sid = conn.execute("INSERT INTO design_sessions(prompt, model) VALUES (?,?)", ("t", "m")).lastrowid
+    vid = conn.execute("INSERT INTO design_versions(session_id) VALUES (?)", (sid,)).lastrowid
     conn.execute(
         "INSERT INTO board_outline(version_id, width_mm, height_mm) VALUES (?,?,?)",
         (vid, 85.0, 56.0),
     )
-    conn.execute(
-        "UPDATE design_versions SET status='LOCKED', hash='h' WHERE id=?", (vid,)
-    )
+    conn.execute("UPDATE design_versions SET status='LOCKED', hash='h' WHERE id=?", (vid,))
     conn.commit()
     conn.close()
     return str(db), vid

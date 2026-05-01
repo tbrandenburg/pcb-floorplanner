@@ -5,6 +5,7 @@ Generate HTML report: BOM table, constraints, violations, convergence plot, floo
 Usage: python render_report.py --run_id 1 --out_dir output/
 Writes: output/report.html, writes path to render_artifacts.
 """
+
 import argparse, base64, json, sys
 from pathlib import Path
 
@@ -31,14 +32,16 @@ def render_report(run_id, out_dir, db_path=DEFAULT_DB):
            JOIN optimization_runs r ON r.version_id=b.version_id
            JOIN design_versions dv ON dv.id=r.version_id
            JOIN design_sessions ds ON ds.id=dv.session_id
-           WHERE r.id=?""", (run_id,)
+           WHERE r.id=?""",
+        (run_id,),
     ).fetchone()
 
     # BOM
     bom = conn.execute(
         """SELECT c.name, c.type, c.package, c.notes
            FROM components c JOIN optimization_runs r ON r.version_id=c.version_id
-           WHERE r.id=? ORDER BY c.type, c.name""", (run_id,)
+           WHERE r.id=? ORDER BY c.type, c.name""",
+        (run_id,),
     ).fetchall()
 
     # constraints
@@ -49,7 +52,8 @@ def render_report(run_id, out_dir, db_path=DEFAULT_DB):
            JOIN components ca ON ct.comp_a_id=ca.id
            LEFT JOIN components cb ON ct.comp_b_id=cb.id
            JOIN optimization_runs r ON r.version_id=ct.version_id
-           WHERE r.id=? ORDER BY ct.type""", (run_id,)
+           WHERE r.id=? ORDER BY ct.type""",
+        (run_id,),
     ).fetchall()
 
     # violations
@@ -60,27 +64,25 @@ def render_report(run_id, out_dir, db_path=DEFAULT_DB):
            JOIN constraints ct ON v.constraint_id=ct.id
            JOIN components ca ON ct.comp_a_id=ca.id
            LEFT JOIN components cb ON ct.comp_b_id=cb.id
-           WHERE v.run_id=? ORDER BY v.delta_mm""", (run_id,)
+           WHERE v.run_id=? ORDER BY v.delta_mm""",
+        (run_id,),
     ).fetchall()
 
     # score
     score_row = conn.execute(
         "SELECT final_penalty, violation_count, hard_violation_count, net_length_total FROM placement_score WHERE run_id=?",
-        (run_id,)
+        (run_id,),
     ).fetchone()
 
     # convergence data
     history = conn.execute(
-        "SELECT iteration, total_penalty FROM score_history WHERE run_id=? ORDER BY iteration",
-        (run_id,)
+        "SELECT iteration, total_penalty FROM score_history WHERE run_id=? ORDER BY iteration", (run_id,)
     ).fetchall()
 
     # artifact paths
     artifacts = {
         row[0]: row[1]
-        for row in conn.execute(
-            "SELECT type, file_path FROM render_artifacts WHERE run_id=?", (run_id,)
-        ).fetchall()
+        for row in conn.execute("SELECT type, file_path FROM render_artifacts WHERE run_id=?", (run_id,)).fetchall()
     }
     conn.close()
 
@@ -92,8 +94,7 @@ def render_report(run_id, out_dir, db_path=DEFAULT_DB):
     if history:
         max_p = max(r[1] for r in history) or 1
         spark_pts = " ".join(
-            f"{int(r[0] / history[-1][0] * 400)},{int((1 - r[1] / max_p) * 80)}"
-            for r in history if history[-1][0] > 0
+            f"{int(r[0] / history[-1][0] * 400)},{int((1 - r[1] / max_p) * 80)}" for r in history if history[-1][0] > 0
         )
         spark = f'<svg width="400" height="80" style="background:#111"><polyline points="{spark_pts}" fill="none" stroke="#0f0" stroke-width="1.5"/></svg>'
     else:
@@ -102,8 +103,7 @@ def render_report(run_id, out_dir, db_path=DEFAULT_DB):
     # HTML generation (no Jinja2 dependency)
     def bom_rows():
         return "\n".join(
-            f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2] or '—'}</td><td>{r[3] or ''}</td></tr>"
-            for r in bom
+            f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2] or '—'}</td><td>{r[3] or ''}</td></tr>" for r in bom
         )
 
     def constraint_rows():
@@ -118,19 +118,23 @@ def render_report(run_id, out_dir, db_path=DEFAULT_DB):
         rows = []
         for v in violations:
             hard = "HARD" if v[6] else "soft"
-            cls = 'class="hard"' if v[6] and v[5] < 0 else ('class="soft"' if v[5] < 0 else '')
+            cls = 'class="hard"' if v[6] and v[5] < 0 else ('class="soft"' if v[5] < 0 else "")
             rows.append(
                 f"<tr {cls}><td>{v[0]}</td><td>{v[1]}</td><td>{v[2] or '—'}</td>"
                 f"<td>{v[3]}</td><td>{v[4]:.2f}</td><td>{v[5]:.2f}</td><td>{hard}</td></tr>"
             )
         return "\n".join(rows)
 
-    score_summary = f"""
+    score_summary = (
+        f"""
     <b>Final penalty:</b> {score_row[0]:.1f} &nbsp;|&nbsp;
     <b>Violations:</b> {score_row[1]} &nbsp;|&nbsp;
     <b>Hard violations:</b> {score_row[2]} &nbsp;|&nbsp;
     <b>Net length est:</b> {score_row[3]:.1f} mm
-    """ if score_row else "No score computed"
+    """
+        if score_row
+        else "No score computed"
+    )
 
     html = f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8">
@@ -150,16 +154,16 @@ def render_report(run_id, out_dir, db_path=DEFAULT_DB):
 </style></head><body>
 <h1>PCB Floorplan Report</h1>
 <p class="meta">run_id={run_id} &nbsp;|&nbsp; Board: {board[0]}×{board[1]}mm, {board[2]}-layer
-&nbsp;|&nbsp; Hash: {(board[3] or '')[:12]}...</p>
+&nbsp;|&nbsp; Hash: {(board[3] or "")[:12]}...</p>
 <p class="meta"><b>Prompt:</b> {board[4]}</p>
 
 <div class="score-box">{score_summary}</div>
 
 <h2>Floorplan</h2>
-{'<img src="data:image/png;base64,' + fp_b64 + '">' if fp_b64 else '<em>floorplan.png not found</em>'}
+{'<img src="data:image/png;base64,' + fp_b64 + '">' if fp_b64 else "<em>floorplan.png not found</em>"}
 
 <h2>Occupancy Heatmap</h2>
-{'<img src="data:image/png;base64,' + hm_b64 + '">' if hm_b64 else '<em>heatmap.png not found</em>'}
+{'<img src="data:image/png;base64,' + hm_b64 + '">' if hm_b64 else "<em>heatmap.png not found</em>"}
 
 <h2>Score Convergence</h2>
 {spark}

@@ -7,14 +7,16 @@ Init script: `db/db_init.py`
 ## Connection requirements
 
 Every connection MUST set:
+
 ```python
 conn.execute("PRAGMA foreign_keys = ON")
 ```
+
 Without this, SQLite silently ignores FK violations.
 
 ## Design versioning model
 
-```
+```text
 design_sessions (1) ──< design_versions (many)
 design_versions status: DRAFT → LOCKED (one-way, enforced by trigger)
 All input tables (components, nets, constraints, board_outline, etc.)

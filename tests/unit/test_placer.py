@@ -8,6 +8,7 @@ Covers:
   - snap(): rounds to nearest grid step (not floor)
   - place_at(): marks all courtyard cells in occupied
 """
+
 import sys
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from placer_greedy import cells_for, fits, place_at, snap
 
 
 # ── cells_for ─────────────────────────────────────────────────────────────────
+
 
 def test_cells_for_no_courtyard_covers_body_only():
     cells = cells_for(0, 0, 3, 3, cyd=0, res=1.0)
@@ -27,8 +29,8 @@ def test_cells_for_no_courtyard_covers_body_only():
 def test_cells_for_courtyard_extends_coverage():
     # body 2x2 at (2,2), cyd=1 → coverage from (1,1) to (4,4)
     cells = cells_for(2, 2, 2, 2, cyd=1, res=1.0)
-    assert (1, 1) in cells   # courtyard start
-    assert (3, 3) in cells   # courtyard end (ceil(5/1)=5 exclusive → cell 4 is last)
+    assert (1, 1) in cells  # courtyard start
+    assert (3, 3) in cells  # courtyard end (ceil(5/1)=5 exclusive → cell 4 is last)
     assert (0, 0) not in cells
 
 
@@ -46,6 +48,7 @@ def test_cells_for_courtyard_is_required_for_clearance():
 
 
 # ── fits ──────────────────────────────────────────────────────────────────────
+
 
 def test_fits_rejects_negative_x():
     assert fits(-1, 0, 5, 5, 0, 50, 50, {}, 1.0) is False
@@ -82,6 +85,7 @@ def test_fits_allows_position_after_occupied_area():
 
 # ── snap ─────────────────────────────────────────────────────────────────────
 
+
 def test_snap_rounds_to_nearest_not_floor():
     # 1.6 with res=1.0 → nearest is 2.0, not floor(1.6)=1.0
     assert snap(1.6, 1.0) == 2.0
@@ -102,6 +106,7 @@ def test_snap_half_resolution():
 
 
 # ── place_at ─────────────────────────────────────────────────────────────────
+
 
 def test_place_at_marks_body_cells():
     occupied = {}
