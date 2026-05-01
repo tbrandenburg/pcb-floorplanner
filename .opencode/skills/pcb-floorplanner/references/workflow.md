@@ -64,14 +64,8 @@ cause of boards where connectors are inaccessible from outside the box.
    - Handheld → custom moulded case
 
 2. **Map PCB edges to enclosure faces.** Draw a text diagram, e.g.:
+
    ```text
-   Enclosure: AT desktop tower, board horizontal (landscape)
-   TOP edge    → rear panel  (user-accessible: I/O connectors, expansion slots)
-   BOTTOM edge → front panel (user-accessible: power button, reset, drive LEDs)
-   LEFT edge   → left side wall (blocked — no connectors allowed)
-   RIGHT edge  → PSU bay (user-accessible: AT power connector P8/P9)
-   Board sits on 4–6 standoffs; height above floor ≈ 20 mm
-   ```
    Enclosure: AT desktop tower, board horizontal (landscape)
    TOP edge    → rear panel  (user-accessible: I/O connectors, expansion slots)
    BOTTOM edge → front panel (user-accessible: power button, reset, drive LEDs)
@@ -93,6 +87,7 @@ cause of boards where connectors are inaccessible from outside the box.
 
 5. **Write a numbered Mechanical Constraints Summary (MECH-N rules).** Each rule is a
    one-sentence hard requirement, e.g.:
+
    ```text
    MECH-1: ISA expansion slots at TOP edge (rear panel). Card fingers toward y=0.
    MECH-2: Rear I/O bracket connectors (keyboard, serial, parallel, VGA) at TOP edge.
@@ -101,12 +96,46 @@ cause of boards where connectors are inaccessible from outside the box.
    MECH-5: No component >15 mm tall in zone x=0..30 (PSU shadow zone).
    MECH-6: M3 mount holes at four corners, 5 mm inset. 7×7 mm keep-out around each.
    ```
+
+   Enclosure: AT desktop tower, board horizontal (landscape)
+   TOP edge    → rear panel  (user-accessible: I/O connectors, expansion slots)
+   BOTTOM edge → front panel (user-accessible: power button, reset, drive LEDs)
+   LEFT edge   → left side wall (blocked — no connectors allowed)
+   RIGHT edge  → PSU bay (user-accessible: AT power connector P8/P9)
+   Board sits on 4–6 standoffs; height above floor ≈ 20 mm
+
+   ```
+
+3. **List per-face requirements.** For each accessible face, enumerate every port, slot,
+   button, LED, or ventilation feature that must break through the enclosure wall, including
+   whether a bracket cutout, card guide rail, or internal cable header is needed.
+
+4. **Identify mechanical constraints on the PCB itself:**
+   - Standoff positions → mount hole coordinates
+   - Corner clearance (standoff head diameter + washer) → keep-out zones
+   - Height-limited zones (below PSU, under card guide rails) → keep-outs for tall components
+   - Airflow corridors (fan inlet/outlet) → no tall components blocking flow
+   - Connector mating envelopes (ISA/PCI cards need space to insert/remove perpendicular to board)
+
+5. **Write a numbered Mechanical Constraints Summary (MECH-N rules).** Each rule is a
+   one-sentence hard requirement, e.g.:
+
+   ```text
    MECH-1: ISA expansion slots at TOP edge (rear panel). Card fingers toward y=0.
    MECH-2: Rear I/O bracket connectors (keyboard, serial, parallel, VGA) at TOP edge.
    MECH-3: AT power connectors P8/P9 at RIGHT edge (PSU bay).
    MECH-4: Front panel header at BOTTOM edge (power button, reset, LEDs, speaker).
    MECH-5: No component >15 mm tall in zone x=0..30 (PSU shadow zone).
    MECH-6: M3 mount holes at four corners, 5 mm inset. 7×7 mm keep-out around each.
+   ```
+
+   MECH-1: ISA expansion slots at TOP edge (rear panel). Card fingers toward y=0.
+   MECH-2: Rear I/O bracket connectors (keyboard, serial, parallel, VGA) at TOP edge.
+   MECH-3: AT power connectors P8/P9 at RIGHT edge (PSU bay).
+   MECH-4: Front panel header at BOTTOM edge (power button, reset, LEDs, speaker).
+   MECH-5: No component >15 mm tall in zone x=0..30 (PSU shadow zone).
+   MECH-6: M3 mount holes at four corners, 5 mm inset. 7×7 mm keep-out around each.
+
    ```
 
 **Outputs (DB writes):**
