@@ -167,3 +167,35 @@ The pipeline is packaged as an [OpenCode](https://opencode.ai) skill:
 ```
 
 Load the skill in your OpenCode session and say: *"Create a floorplan for…"*
+
+---
+
+## Example output — 8-bit Retro MIDI Looper
+
+> *"Create a floorplan of a 8-bit retro MIDI looper with USB-MIDI in and aux out and some
+> control buttons which fits into a Rommée card box like case."*
+
+**Board:** 100×65mm, 2-layer, fits a Rommée card box (~105×70mm internal)
+
+| Placement | Components |
+|---|---|
+| Bottom edge | J1 — USB-C (MIDI in + 5V power) |
+| Right edge | J2 — 3.5mm stereo TRS audio out |
+| Top edge | SW1–SW4 buttons, ENC1 rotary encoder, LED1–LED4 status LEDs |
+| Centre | U1 ATmega32U4 MCU, U3 EEPROM, Y1 crystal, passives |
+
+**Floorplan:**
+
+![MIDI Looper PCB Floorplan](docs/assets/midi-looper-floorplan.png)
+
+**Occupancy heatmap:**
+
+![MIDI Looper Heatmap](docs/assets/midi-looper-heatmap.png)
+
+**Stats:** 32 components · 11 nets · 31 constraints · 100k SA iterations · 0 hard violations
+
+**Key design choices (DIY mindset):**
+- ATmega32U4 — native USB MIDI device mode, no USB bridge chip needed
+- PWM audio via OC1A/OC1B + 1k/100nF RC low-pass filter — no DAC required
+- AT24C256 EEPROM via I2C — 32KB for non-volatile MIDI loop storage
+- MCP1700 LDO — clean 3.3V analog rail from USB 5V
