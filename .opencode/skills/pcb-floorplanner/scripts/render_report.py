@@ -182,7 +182,7 @@ def render_report(run_id, out_dir, db_path=DEFAULT_DB):
 
 </body></html>"""
 
-    out_path = Path(out_dir) / "report.html"
+    out_path = Path(out_dir) / f"report_run_{run_id:04d}.html"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(html)
 

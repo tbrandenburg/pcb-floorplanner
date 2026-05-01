@@ -191,7 +191,7 @@ def render_floorplan(run_id, out_dir, db_path=DEFAULT_DB):
     ctx.move_to(4, 14)
     ctx.show_text(f"PCB Floorplan  run_id={run_id}  {W_mm:.0f}x{H_mm:.0f}mm")
 
-    out_path = Path(out_dir) / "floorplan.png"
+    out_path = Path(out_dir) / f"floorplan_run_{run_id:04d}.png"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     surface.write_to_png(str(out_path))
     return str(out_path)
@@ -242,7 +242,7 @@ def render_heatmap(run_id, out_dir, db_path=DEFAULT_DB):
     ctx.move_to(4, 14)
     ctx.show_text(f"Occupancy Heatmap  run_id={run_id}  (red=dense, dark=empty)")
 
-    out_path = Path(out_dir) / "heatmap.png"
+    out_path = Path(out_dir) / f"heatmap_run_{run_id:04d}.png"
     surface.write_to_png(str(out_path))
     return str(out_path)
 
