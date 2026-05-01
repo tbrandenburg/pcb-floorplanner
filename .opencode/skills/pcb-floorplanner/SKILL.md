@@ -308,84 +308,36 @@ inaccessible from outside the box.
 1. Identify enclosure type from the prompt. If unspecified, assume the most common DIY
    form for the device class (e.g. desktop tower for a PC mainboard, custom ABS box for
    an MCU project).
-2. Draw a text diagram mapping enclosure faces → PCB edges, e.g.:
+
+2. Draw a text diagram mapping enclosure faces to PCB edges, e.g.:
 
    ```text
    Enclosure: AT desktop tower, board horizontal
-   TOP edge    → rear panel  (accessible: I/O connectors, ISA slots)
-   BOTTOM edge → front panel (accessible: power button, reset, HDD LED)
-   LEFT edge   → left side wall (blocked — no connectors)
-   RIGHT edge  → PSU bay (accessible: AT power connector)
+   TOP edge    = rear panel  (accessible: I/O connectors, ISA slots)
+   BOTTOM edge = front panel (accessible: power button, reset, HDD LED)
+   LEFT edge   = left side wall (blocked, no connectors)
+   RIGHT edge  = PSU bay (accessible: AT power connector)
    Board rests on standoffs at corners + centre
    ```
 
-3. For each accessible face, list what must be there and whether it needs a cutout, a
-   bracket slot, or just a header (for an internal cable).
+3. For each accessible face, list what must be there and whether it needs a cutout,
+   a bracket slot, or just a header (for an internal cable).
+
 4. Identify height-limited zones (e.g. below the PSU bay, below a GPU card) and mark
    them as keep-out zones for tall components.
+
 5. Identify the standoff grid and convert to mount hole positions + corner keep-outs.
+
 6. Output a **Mechanical Constraints Summary** — a numbered list of hard rules every
    downstream step must follow. Example:
 
    ```text
-   MECH-1: ISA expansion slots must be at the TOP edge (rear panel), oriented so card
-           fingers point toward y=0, cards extend upward out of the board.
-   MECH-2: AT keyboard DIN-5, COM1/COM2 DB9, LPT1 DB25, VGA DB15 must all be at
-           the TOP edge (rear I/O bracket area).
-   MECH-3: AT power connectors P8/P9 must be at the RIGHT edge (PSU bay side).
-   MECH-4: Front panel header (reset, HDD LED, power LED, speaker) must be at the
-           BOTTOM edge (front panel side).
-   MECH-5: No component taller than 15 mm in the zone x=0..30, y=0..148 (PSU shadow).
-   MECH-6: Four M3 standoff holes at corners, 5 mm inset. Keep-out 7×7 mm around each.
-   ```
-
-3. For each accessible face, list what must be there and whether it needs a cutout, a
-   bracket slot, or just a header (for an internal cable).
-4. Identify height-limited zones (e.g. below the PSU bay, below a GPU card) and mark
-   them as keep-out zones for tall components.
-5. Identify the standoff grid and convert to mount hole positions + corner keep-outs.
-6. Output a **Mechanical Constraints Summary** — a numbered list of hard rules every
-   downstream step must follow. Example:
-
-   ```text
-   MECH-1: ISA expansion slots must be at the TOP edge (rear panel), oriented so card
-           fingers point toward y=0, cards extend upward out of the board.
-   MECH-2: AT keyboard DIN-5, COM1/COM2 DB9, LPT1 DB25, VGA DB15 must all be at
-           the TOP edge (rear I/O bracket area).
-   MECH-3: AT power connectors P8/P9 must be at the RIGHT edge (PSU bay side).
-   MECH-4: Front panel header (reset, HDD LED, power LED, speaker) must be at the
-           BOTTOM edge (front panel side).
-   MECH-5: No component taller than 15 mm in the zone x=0..30, y=0..148 (PSU shadow).
-   MECH-6: Four M3 standoff holes at corners, 5 mm inset. Keep-out 7×7 mm around each.
-   ```
-
-   Enclosure: AT desktop tower, board horizontal
-   TOP edge    → rear panel  (accessible: I/O connectors, ISA slots)
-   BOTTOM edge → front panel (accessible: power button, reset, HDD LED)
-   LEFT edge   → left side wall (blocked — no connectors)
-   RIGHT edge  → PSU bay (accessible: AT power connector)
-   Board rests on standoffs at corners + centre
-
-   ```
-
-7. For each accessible face, list what must be there and whether it needs a cutout, a
-   bracket slot, or just a header (for an internal cable).
-8. Identify height-limited zones (e.g. below the PSU bay, below a GPU card) and mark
-   them as keep-out zones for tall components.
-9. Identify the standoff grid and convert to mount hole positions + corner keep-outs.
-10. Output a **Mechanical Constraints Summary** — a numbered list of hard rules every
-   downstream step must follow. Example:
-
-   ```text
-   MECH-1: ISA expansion slots must be at the TOP edge (rear panel), oriented so card
-           fingers point toward y=0, cards extend upward out of the board.
-   MECH-2: AT keyboard DIN-5, COM1/COM2 DB9, LPT1 DB25, VGA DB15 must all be at
-           the TOP edge (rear I/O bracket area).
-   MECH-3: AT power connectors P8/P9 must be at the RIGHT edge (PSU bay side).
-   MECH-4: Front panel header (reset, HDD LED, power LED, speaker) must be at the
-           BOTTOM edge (front panel side).
-   MECH-5: No component taller than 15 mm in the zone x=0..30, y=0..148 (PSU shadow).
-   MECH-6: Four M3 standoff holes at corners, 5 mm inset. Keep-out 7×7 mm around each.
+   MECH-1: ISA expansion slots at TOP edge (rear panel). Card fingers toward y=0.
+   MECH-2: Keyboard DIN-5, COM1/COM2 DB9, LPT1 DB25, VGA DB15 at TOP edge.
+   MECH-3: AT power connectors P8/P9 at RIGHT edge (PSU bay side).
+   MECH-4: Front panel header at BOTTOM edge (reset, HDD LED, power LED, speaker).
+   MECH-5: No component taller than 15 mm in zone x=0..30, y=0..148 (PSU shadow).
+   MECH-6: Four M3 standoff holes at corners, 5 mm inset. Keep-out 7x7 mm around each.
    ```
 
    MECH-1: ISA expansion slots must be at the TOP edge (rear panel), oriented so card
