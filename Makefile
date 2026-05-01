@@ -6,7 +6,7 @@ MD_FILES   := AGENTS.md README.md $(wildcard .opencode/skills/pcb-floorplanner/*
               $(wildcard .opencode/skills/pcb-floorplanner/references/*.md)
 VENV_PYTHON := $(shell command -v python3)
 
-.PHONY: help db-init db-verify db-status db-summary format lint test qa
+.PHONY: help db-init db-verify db-status db-summary format lint test qa example-386
 
 help:
 	@echo ""
@@ -69,3 +69,8 @@ test:
 
 # ── qa ────────────────────────────────────────────────────────────────────────
 qa: format lint test
+
+# ── example-386 ───────────────────────────────────────────────────────────────
+example-386:
+	opencode run \
+		"Create a floorplan of a 386 mainboard which fits onto an A5 format box. If you have questions - assume the answer with a diy enthusiast mindset. Finally send the floorplan and the list of components and their task to me via telegram."
