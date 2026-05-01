@@ -349,7 +349,6 @@ inaccessible from outside the box.
            BOTTOM edge (front panel side).
    MECH-5: No component taller than 15 mm in the zone x=0..30, y=0..148 (PSU shadow).
    MECH-6: Four M3 standoff holes at corners, 5 mm inset. Keep-out 7×7 mm around each.
-
    ```
 
 **Output:** Write the Mechanical Constraints Summary as `notes` on a functional block
