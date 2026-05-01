@@ -115,7 +115,7 @@ source .venv/bin/activate
 
 The penalty function used by simulated annealing:
 
-```
+```text
 total_penalty = constraint_penalty + overlap_penalty + net_length_est + keep_out_penalty
 ```
 
@@ -131,7 +131,7 @@ total_penalty = constraint_penalty + overlap_penalty + net_length_est + keep_out
 
 86 tests across unit and integration suites:
 
-```
+```text
 tests/unit/
   test_schema.py          17 DB integrity tests (FK, UNIQUE, CHECK, immutability triggers)
   test_scorer.py          29 scorer unit tests (keep-out, overlap, NEAR/FAR/ALIGN/FIXED, HPWL,
