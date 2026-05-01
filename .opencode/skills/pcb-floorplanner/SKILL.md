@@ -20,14 +20,14 @@ No data is passed between steps as arguments — the DB is the contract.
 
 ## Prerequisites
 
+The virtualenv (shapely, cairocffi, matplotlib) must be active before running any
+Python step. Activate it from the repo root:
+
 ```bash
-# From project root (workspace/floorplan/)
-source .venv/bin/activate     # shapely, cairocffi, matplotlib installed
+source .venv/bin/activate
 ```
 
-The database is created automatically on first use — `connect()` runs the schema
-when the file does not yet exist. No manual `db_init` call is needed before starting.
-
+The database is created automatically on first use — no manual `db_init` call needed.
 `python db/db_init.py --force` (or `make db-init FORCE=1`) is available as an
 administrative reset if you need to wipe the DB and start a new design from scratch.
 

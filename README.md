@@ -54,18 +54,14 @@ The agent decides how to research — facts are never made up.
 
 ## Quick start
 
-```bash
-# 1. Activate the virtualenv (cairocffi, shapely, matplotlib)
-source .venv/bin/activate
+Load the skill in your OpenCode session and describe your hardware:
 
-# 2. Load the skill in your OpenCode session and say:
-#    "Create a floorplan for …"
+```text
+"Create a floorplan for an 8-bit retro MIDI looper with USB-MIDI in,
+ 3.5mm AUX out, and control buttons — fits an Intel NUC-like case."
 ```
 
-The database is created automatically on first use. No setup required.
-
-`make db-init` is available if you need to wipe and reinitialise the DB manually
-(e.g. starting a completely fresh design from scratch).
+That's it. The skill handles everything from IC selection to rendered PNG.
 
 ---
 
