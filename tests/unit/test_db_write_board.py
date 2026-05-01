@@ -5,7 +5,8 @@ Covers:
   - keep-out zone exceeding board boundary raises ValueError
   - mount hole annular ring outside board boundary raises ValueError
   - mount hole overlapping a non-mount-hole keep-out raises ValueError
-  - mount hole inside its own mount-hole keep-out does NOT raise (correct design)
+  - mount hole inside keep-out with is_mount_clearance=True does NOT raise (correct design)
+  - mount hole inside keep-out WITHOUT is_mount_clearance raises (fragile string match removed)
   - valid board data writes without error
   - full-edge keep-out zone emits a warning (would block FIXED edge connectors)
 """
@@ -44,7 +45,13 @@ def test_valid_board_writes_successfully(tmp_path):
         {
             "version_id": 1,
             "board": BOARD,
-            "keep_out_zones": [{"x_mm": 0, "y_mm": 0, "width_mm": 7, "height_mm": 7, "reason": "mount hole TL"}],
+            "keep_out_zones": [
+                {
+                    "x_mm": 0, "y_mm": 0, "width_mm": 7, "height_mm": 7,
+                    "reason": "corner clearance TL",
+                    "is_mount_clearance": True,
+                }
+            ],
             "mount_holes": [{"x_mm": 3.5, "y_mm": 3.5, "diameter_mm": 2.7}],
         },
         db,
@@ -114,20 +121,42 @@ def test_mount_hole_overlapping_non_mount_keep_out_raises(tmp_path):
 
 
 def test_mount_hole_inside_own_keep_out_does_not_raise(tmp_path):
-    """Mount holes are intentionally co-located with their corner keep-outs."""
+    """is_mount_clearance=True signals the keep-out is intentionally co-located with a mount hole."""
     db = make_db_path(tmp_path)
     result = write_board(
         {
             "version_id": 1,
             "board": BOARD,
             "keep_out_zones": [
-                {"x_mm": 0, "y_mm": 0, "width_mm": 7, "height_mm": 7, "reason": "mount hole keep-out TL"},
+                {
+                    "x_mm": 0, "y_mm": 0, "width_mm": 7, "height_mm": 7,
+                    "reason": "corner clearance TL",
+                    "is_mount_clearance": True,
+                },
             ],
             "mount_holes": [{"x_mm": 3.5, "y_mm": 3.5, "diameter_mm": 2.7}],
         },
         db,
     )
     assert result["mount_holes"] == 1
+
+
+def test_mount_hole_inside_keep_out_without_flag_raises(tmp_path):
+    """Without is_mount_clearance=True the overlap check fires, even if 'mount hole' is in reason."""
+    db = make_db_path(tmp_path)
+    with pytest.raises(ValueError, match="annular ring overlaps keep-out"):
+        write_board(
+            {
+                "version_id": 1,
+                "board": BOARD,
+                "keep_out_zones": [
+                    # Old string-match workaround; is_mount_clearance not set → must raise
+                    {"x_mm": 0, "y_mm": 0, "width_mm": 7, "height_mm": 7, "reason": "mount hole corner TL"},
+                ],
+                "mount_holes": [{"x_mm": 3.5, "y_mm": 3.5, "diameter_mm": 2.7}],
+            },
+            db,
+        )
 
 
 def test_full_edge_keep_out_emits_warning(tmp_path, capsys):

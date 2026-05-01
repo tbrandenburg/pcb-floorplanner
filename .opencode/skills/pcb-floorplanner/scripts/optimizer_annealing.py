@@ -3,8 +3,13 @@ optimizer_annealing.py — Step 7
 Simulated annealing over placements. Mutates placements + occupancy_grid in DB.
 Logs every iteration to score_history.
 
-Usage: python optimizer_annealing.py --run_id 1 [--iterations 5000] [--seed 42]
+Usage: python optimizer_annealing.py --run_id 1 [--iterations 5000] [--seed 42] [--overwrite]
 Prints: {"best_penalty": N, "iterations": N, "improvement_pct": N}
+
+Flags:
+  --overwrite   Clear score_history, violations, and placement_score for the run_id
+                before starting. Required when re-running SA on an existing run_id,
+                otherwise the INSERT into score_history hits a UNIQUE constraint.
 """
 
 import argparse, copy, json, math, random, sys
@@ -74,9 +79,15 @@ def propose_move(placements, fixed_ids, W, H, res, rng):
     return new_p, f"translate {comp_id} {axis}+{step:.1f}"
 
 
-def anneal(run_id, n_iter=5000, seed=42, db_path=DEFAULT_DB):
+def anneal(run_id, n_iter=5000, seed=42, db_path=DEFAULT_DB, overwrite=False):
     rng = random.Random(seed)
     conn = connect(db_path)
+
+    if overwrite:
+        conn.execute("DELETE FROM score_history WHERE run_id=?", (run_id,))
+        conn.execute("DELETE FROM violations WHERE run_id=?", (run_id,))
+        conn.execute("DELETE FROM placement_score WHERE run_id=?", (run_id,))
+        conn.commit()
 
     board = load_board(conn, run_id)
     if not board:
@@ -181,6 +192,8 @@ if __name__ == "__main__":
     ap.add_argument("--run_id", type=int, required=True)
     ap.add_argument("--iterations", type=int, default=5000)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--overwrite", action="store_true",
+                    help="Clear score_history/violations/placement_score before running (required for reruns)")
     ap.add_argument("--db", default=str(DEFAULT_DB))
     args = ap.parse_args()
-    print(json.dumps(anneal(args.run_id, args.iterations, args.seed, args.db)))
+    print(json.dumps(anneal(args.run_id, args.iterations, args.seed, args.db, args.overwrite)))

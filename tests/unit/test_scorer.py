@@ -211,10 +211,10 @@ def test_fixed_constraint_near_bottom_edge_lower_penalty_than_centre():
     """Component near the bottom edge should have lower penalty than one in the centre."""
     board = (100, 100)
     c = [make_constraint(1, "FIXED", 1, weight=1.0)]
-    p_centre = {1: make_comp(48, 48, 4, 4)}   # centroid (50, 50) → dist 50
-    p_edge   = {1: make_comp(48, 94, 4, 4)}   # centroid (50, 96) → dist min(50,50,96,4)=4
+    p_centre = {1: make_comp(48, 48, 4, 4)}  # centroid (50, 50) → dist 50
+    p_edge = {1: make_comp(48, 94, 4, 4)}  # centroid (50, 96) → dist min(50,50,96,4)=4
     centre_penalty = score(p_centre, c, [], board=board)["constraint_penalty"]
-    edge_penalty   = score(p_edge,   c, [], board=board)["constraint_penalty"]
+    edge_penalty = score(p_edge, c, [], board=board)["constraint_penalty"]
     assert edge_penalty < centre_penalty
 
 
@@ -222,19 +222,61 @@ def test_fixed_constraint_without_board_dims_is_zero():
     """When board dims are not provided, FIXED penalty degrades gracefully to 0."""
     p = {1: make_comp(40, 28, 5, 5)}
     c = [make_constraint(1, "FIXED", 1)]
-    result = score(p, c, [])   # no board kwarg
+    result = score(p, c, [])  # no board kwarg
     assert result["constraint_penalty"] == 0.0
 
 
 def test_fixed_constraint_violation_recorded_when_far_from_edge():
     """Component > 5mm from any edge should appear in violations list."""
-    p = {1: make_comp(48, 48, 4, 4)}   # centroid (50,50), dist=50
+    p = {1: make_comp(48, 48, 4, 4)}  # centroid (50,50), dist=50
     c = [make_constraint(1, "FIXED", 1, weight=1.0)]
     result = score(p, c, [], board=(100, 100))
     assert len(result["violations"]) == 1
-    con_id, actual, delta = result["violations"][0]
+    con_id, actual, delta, hard_flag = result["violations"][0]
     assert actual == pytest.approx(50.0)
-    assert delta == pytest.approx(45.0)   # 50 - 5 threshold
+    assert delta == pytest.approx(45.0)  # 50 - 5 threshold
+
+
+def test_fixed_violation_carries_hard_flag():
+    """Violation 4-tuple must carry the hard flag from the constraint."""
+    p = {1: make_comp(48, 48, 4, 4)}
+    c_soft = [make_constraint(1, "FIXED", 1, weight=1.0, hard=0)]
+    c_hard = [make_constraint(1, "FIXED", 1, weight=1.0, hard=1)]
+    soft_violations = score(p, c_soft, [], board=(100, 100))["violations"]
+    hard_violations = score(p, c_hard, [], board=(100, 100))["violations"]
+    assert soft_violations[0][3] is False
+    assert hard_violations[0][3] is True
+
+
+def test_fixed_hard1_penalty_higher_than_soft():
+    """hard=1 FIXED constraint must produce substantially larger penalty than hard=0
+    when the component is far from the board edge, so SA is strongly driven to the edge."""
+    p = {1: make_comp(48, 48, 4, 4)}  # centroid (50,50), 50mm from every edge
+    c_soft = [make_constraint(1, "FIXED", 1, weight=1.0, hard=0)]
+    c_hard = [make_constraint(1, "FIXED", 1, weight=1.0, hard=1)]
+    soft_penalty = score(p, c_soft, [], board=(100, 100))["constraint_penalty"]
+    hard_penalty = score(p, c_hard, [], board=(100, 100))["constraint_penalty"]
+    assert hard_penalty > soft_penalty * 10, (
+        f"hard=1 FIXED penalty ({hard_penalty}) should be >10x soft ({soft_penalty})"
+    )
+
+
+def test_near_violation_carries_hard_flag():
+    """NEAR violation 4-tuple must carry the hard flag."""
+    p = {1: make_comp(0, 0, 2, 2), 2: make_comp(20, 0, 2, 2)}
+    c = [make_constraint(1, "NEAR", 1, 2, max_d=5.0, hard=1)]
+    violations = score(p, c, [])["violations"]
+    assert len(violations) == 1
+    assert violations[0][3] is True
+
+
+def test_far_violation_carries_hard_flag():
+    """FAR violation 4-tuple must carry the hard flag."""
+    p = {1: make_comp(0, 0, 2, 2), 2: make_comp(1, 0, 2, 2)}
+    c = [make_constraint(1, "FAR", 1, 2, min_d=20.0, hard=0)]
+    violations = score(p, c, [])["violations"]
+    assert len(violations) == 1
+    assert violations[0][3] is False
 
 
 # ── net length (HPWL) ─────────────────────────────────────────────────────────

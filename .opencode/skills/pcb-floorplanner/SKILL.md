@@ -22,7 +22,9 @@ No data is passed between steps as arguments — the DB is the contract.
 
 ```bash
 # From project root (workspace/floorplan/)
-python db/db_init.py          # create schema + DB
+python db/db_init.py          # create schema + DB (prompts if DB exists)
+python db/db_init.py --force  # non-interactive reinitialise (automation / CI)
+make db-init FORCE=1          # same via Makefile
 source .venv/bin/activate     # shapely, cairocffi, matplotlib installed
 ```
 
@@ -85,6 +87,180 @@ python scripts/db_write_session.py \
 python scripts/db_lock_version.py --version_id 1
 # → {"status": "LOCKED", "hash": "3fa2c1...", "components": 12, "constraints": 18}
 # exit 1 if geometry missing or no constraints defined
+```
+
+## Wire-format schemas (exact JSON each script accepts)
+
+These are the exact field names for each `--data` payload. The DB table columns differ
+from the wire format in several scripts — always use these wire-format schemas, not the
+schema.md table definitions.
+
+### `db_write_session.py` (Step 0)
+
+```bash
+python scripts/db_write_session.py \
+  --prompt "Free text design intent" \
+  --model "claude-sonnet-4-5"
+# → {"session_id": N, "version_id": N}
+```
+
+### `db_write_arch.py` (Step 0.5)
+
+Valid category values: `COMPUTE`, `MEMORY`, `POWER`, `IO`, `CLOCK`, `DEBUG`, `RF`, `OTHER`
+
+```json
+{
+  "version_id": 1,
+  "functional_blocks": [
+    {"name": "MCU", "category": "COMPUTE", "notes": "ATmega32U4 — native USB, UART, SPI"}
+  ],
+  "block_connections": [
+    {"from_name": "MCU", "to_name": "MEMORY", "interface_type": "SPI", "critical": 1}
+  ]
+}
+```
+
+### `db_write_bom.py` (Step 1)
+
+```json
+{
+  "version_id": 1,
+  "components": [
+    {"name": "U1", "type": "MCU", "package": "TQFP-44", "notes": "ATmega32U4"}
+  ],
+  "nets": [
+    {"name": "VCC", "type": "PWR"}
+  ],
+  "net_connections": [
+    {"net_name": "VCC", "component_name": "U1", "pin_name": "VCC"}
+  ],
+  "requirements": [
+    {"component_name": "U1", "key": "near", "value": "Y1"},
+    {"component_name": "J1", "key": "edge", "value": "bottom"}
+  ]
+}
+```
+
+Valid net types: `PWR`, `GND`, `SIG`, `DIFF`
+
+### `db_write_board.py` (Step 2)
+
+```json
+{
+  "version_id": 1,
+  "board": {"width_mm": 85.0, "height_mm": 56.0, "grid_resolution": 1.0, "layer_count": 2},
+  "keep_out_zones": [
+    {
+      "x_mm": 0, "y_mm": 0, "width_mm": 7, "height_mm": 7,
+      "reason": "corner clearance TL",
+      "is_mount_clearance": true
+    }
+  ],
+  "mount_holes": [
+    {"x_mm": 3.5, "y_mm": 3.5, "diameter_mm": 3.2}
+  ]
+}
+```
+
+**Mount hole clearance rule:** annular ring = `diameter_mm / 2 + 0.5` mm.
+Place the hole so the ring does not exit the board and does not overlap non-clearance keep-outs.
+For a 3.2 mm drill, annular = 1.6 + 0.5 = 2.1 mm — the hole centre must be ≥ 2.1 mm from every
+board edge and ≥ 2.1 mm from the edge of any keep-out zone that has `is_mount_clearance: false`.
+
+**`is_mount_clearance` flag:** set this to `true` on corner keep-outs that intentionally
+surround a mount hole. This disables the overlap check for that zone so the hole is allowed
+to sit inside it. **Do NOT use the old workaround** of putting "mount hole" in the `reason`
+string — that string match has been removed and will no longer suppress the check.
+
+### `db_write_geometry.py` (Step 3)
+
+```json
+{
+  "version_id": 1,
+  "geometry": [
+    {
+      "component_name": "U1",
+      "width_mm": 10.0,
+      "height_mm": 10.0,
+      "courtyard_margin": 0.5,
+      "allowed_rotations": "0,90,180,270"
+    }
+  ]
+}
+```
+
+### `db_write_constraints.py` (Step 4)
+
+```json
+{
+  "version_id": 1,
+  "constraints": [
+    {
+      "type": "NEAR",
+      "comp_a": "U1",
+      "comp_b": "C1",
+      "max_dist_mm": 2.0,
+      "weight": 2.0,
+      "hard": 0,
+      "reason": "Decoupling cap for U1 VCC"
+    },
+    {
+      "type": "FAR",
+      "comp_a": "U2",
+      "comp_b": "U5",
+      "min_dist_mm": 12.0,
+      "weight": 1.5,
+      "hard": 0,
+      "reason": "Switcher away from ADC"
+    },
+    {
+      "type": "FIXED",
+      "comp_a": "J1",
+      "comp_b": null,
+      "max_dist_mm": null,
+      "weight": 10.0,
+      "hard": 1,
+      "reason": "USB connector must be at bottom board edge"
+    }
+  ]
+}
+```
+
+Valid constraint types: `NEAR`, `FAR`, `FIXED`, `ALIGN`
+
+**FIXED + hard=1:** always use `hard=1` for FIXED edge connectors. The scorer adds a
+`500 × delta` extra penalty for hard FIXED violations, giving SA a strong signal to
+drive connectors to the board edge. With `hard=0` the penalty is only `weight × dist_from_edge`
+which is too weak and connectors will drift inward.
+
+### `optimizer_annealing.py` (Step 7)
+
+```bash
+python scripts/optimizer_annealing.py --run_id 1 [--iterations 5000] [--seed 42]
+
+# Re-running on the same run_id (e.g. more iterations, different seed):
+python scripts/optimizer_annealing.py --run_id 1 --iterations 20000 --seed 99 --overwrite
+```
+
+**`--overwrite` flag:** required when re-running SA on an existing `run_id`. Clears
+`score_history`, `violations`, and `placement_score` before starting. Without it the
+INSERT into `score_history` hits a UNIQUE constraint and the script aborts.
+
+### `write_violations.py` (Step 8)
+
+```bash
+python scripts/write_violations.py --run_id 1
+# → {"violations": N, "hard_violations": N, "final_penalty": F, "net_length_mm": F}
+```
+
+### `db_write_review.py` (Step 10)
+
+```bash
+python scripts/db_write_review.py \
+  --run_id 1 \
+  --action APPROVE \
+  --note "VISUAL: all connectors at edge. SCORES: 5 soft violations, 0 hard. DECISION: APPROVE."
+# valid actions: APPROVE, MODIFY, RERUN
 ```
 
 ## LLM step guidelines
@@ -335,9 +511,15 @@ EE says: "Use a single PMIC instead of three discrete regulators" or "Add a PCIe
 EE says: "The placement looks locally stuck — try again."
 
 1. No new version needed — same LOCKED version.
-2. Clear `score_history`, `violations`, `placement_score` for the run (or create a fresh
-   `optimization_runs` row with a different `random_seed` param).
-3. Re-enter at Step 6.
+2. Re-run SA with `--overwrite` and a different seed to clear old score history:
+
+```bash
+python scripts/optimizer_annealing.py --run_id <id> --seed 99 --overwrite
+python scripts/write_violations.py --run_id <id>
+python scripts/render_png.py --run_id <id>
+```
+
+3. Re-enter at Step 9.5 (visual inspection).
 
 ### The golden rule for all modify cycles
 

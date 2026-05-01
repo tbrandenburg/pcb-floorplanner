@@ -12,18 +12,22 @@ help:
 	@echo ""
 	@echo "  PCB Floorplanner — available targets"
 	@echo ""
-	@echo "  db-init      Initialise $(DB) from schema (asks before overwriting)"
-	@echo "  db-verify    Run schema integrity tests against live DB"
-	@echo "  db-status    Show design versions and optimization runs in live DB"
-	@echo "  db-summary   Show component count, violations, and latest score"
-	@echo "  format       Auto-format Python (ruff) and Markdown (markdownlint --fix)"
-	@echo "  lint         Check Python (ruff) and Markdown (markdownlint)"
-	@echo "  test         Run full test suite (unit + integration)"
-	@echo "  qa           Run format, lint, and test"
+	@echo "  db-init        Initialise $(DB) from schema (asks before overwriting)"
+	@echo "  db-init FORCE=1  Force-reinitialise without prompting (for automation)"
+	@echo "  db-verify      Run schema integrity tests against live DB"
+	@echo "  db-status      Show design versions and optimization runs in live DB"
+	@echo "  db-summary     Show component count, violations, and latest score"
+	@echo "  format         Auto-format Python (ruff) and Markdown (markdownlint --fix)"
+	@echo "  lint           Check Python (ruff) and Markdown (markdownlint)"
+	@echo "  test           Run full test suite (unit + integration)"
+	@echo "  qa             Run format, lint, and test"
 	@echo ""
 
 # ── db-init ───────────────────────────────────────────────────────────────────
 db-init:
+ifeq ($(FORCE),1)
+	$(PYTHON) db/db_init.py --force --db $(DB)
+else
 	@if [ -f "$(DB)" ]; then \
 		printf "$(DB) already exists. Remove and re-initialise? [y/N] "; \
 		read ans; \
@@ -32,7 +36,8 @@ db-init:
 			*)     echo "Aborted."; exit 0 ;; \
 		esac; \
 	fi
-	$(PYTHON) db/db_init.py
+	$(PYTHON) db/db_init.py --db $(DB)
+endif
 	@echo "✓ $(DB) initialised"
 
 # ── db-verify ─────────────────────────────────────────────────────────────────

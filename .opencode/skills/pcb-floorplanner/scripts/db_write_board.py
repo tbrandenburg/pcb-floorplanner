@@ -7,12 +7,23 @@ Input JSON schema:
   "version_id": 1,
   "board": {"width_mm": 85.0, "height_mm": 56.0, "grid_resolution": 1.0, "layer_count": 4},
   "keep_out_zones": [
-    {"x_mm": 0, "y_mm": 0, "width_mm": 5, "height_mm": 5, "reason": "mounting corner"}
+    {
+      "x_mm": 0, "y_mm": 0, "width_mm": 5, "height_mm": 5,
+      "reason": "mount hole corner TL",
+      "is_mount_clearance": true
+    }
   ],
   "mount_holes": [
     {"x_mm": 3.5, "y_mm": 3.5, "diameter_mm": 2.7}
   ]
 }
+
+Notes:
+  - Set "is_mount_clearance": true on corner keep-outs that are intentionally centred on
+    a mount hole. The annular-ring overlap check is skipped for those zones.
+    This replaces the old fragile substring match on "reason".
+  - Mount hole annular ring = diameter/2 + 0.5 mm copper ring. Keep mount holes at least
+    (diameter/2 + 0.5) mm from every board edge and every non-clearance keep-out.
 """
 
 import argparse, json, sys
@@ -42,10 +53,14 @@ def write_board(data: dict, db_path=DEFAULT_DB) -> dict:
         if z["x_mm"] + z["width_mm"] > b["width_mm"] or z["y_mm"] + z["height_mm"] > b["height_mm"]:
             raise ValueError(f"Keep-out zone '{z['reason']}' exceeds board boundary")
         # warn if keep-out spans an entire board edge — this will block FIXED edge connectors
-        spans_top    = z["y_mm"] == 0 and z["x_mm"] == 0 and z["width_mm"] >= b["width_mm"]
-        spans_bottom = (z["y_mm"] + z["height_mm"] >= b["height_mm"]) and z["x_mm"] == 0 and z["width_mm"] >= b["width_mm"]
-        spans_left   = z["x_mm"] == 0 and z["y_mm"] == 0 and z["height_mm"] >= b["height_mm"]
-        spans_right  = (z["x_mm"] + z["width_mm"] >= b["width_mm"]) and z["y_mm"] == 0 and z["height_mm"] >= b["height_mm"]
+        spans_top = z["y_mm"] == 0 and z["x_mm"] == 0 and z["width_mm"] >= b["width_mm"]
+        spans_bottom = (
+            (z["y_mm"] + z["height_mm"] >= b["height_mm"]) and z["x_mm"] == 0 and z["width_mm"] >= b["width_mm"]
+        )
+        spans_left = z["x_mm"] == 0 and z["y_mm"] == 0 and z["height_mm"] >= b["height_mm"]
+        spans_right = (
+            (z["x_mm"] + z["width_mm"] >= b["width_mm"]) and z["y_mm"] == 0 and z["height_mm"] >= b["height_mm"]
+        )
         if spans_top or spans_bottom or spans_left or spans_right:
             edge_warnings.append(
                 f"Keep-out '{z['reason']}' spans a full board edge — FIXED edge connectors "
@@ -65,8 +80,8 @@ def write_board(data: dict, db_path=DEFAULT_DB) -> dict:
         hy0 = h["y_mm"] - annular
         hy1 = h["y_mm"] + annular
         for z in keep_out_zones:
-            # mount hole keep-outs are intentionally centred on holes — skip those
-            if "mount hole" in z.get("reason", ""):
+            # skip zones that are explicitly marked as mount-hole clearance areas
+            if z.get("is_mount_clearance", False):
                 continue
             if (
                 hx0 < z["x_mm"] + z["width_mm"]

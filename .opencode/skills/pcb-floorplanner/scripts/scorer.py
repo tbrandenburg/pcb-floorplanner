@@ -103,8 +103,14 @@ def score(placements, constraints, nets, keep_outs=None, board=None):
                 # dist_from_edge == 0 means centroid is exactly on a board edge.
                 # Penalise proportional to how far inside the board the component sits.
                 penalty = weight * dist_from_edge
-                if dist_from_edge > 5.0:  # more than 5 mm from any edge = violation
-                    violations.append((con_id, dist_from_edge, dist_from_edge - 5.0))
+                threshold = 5.0
+                if dist_from_edge > threshold:
+                    delta = dist_from_edge - threshold
+                    violations.append((con_id, dist_from_edge, delta, bool(hard)))
+                    # hard=1 FIXED violations get a large additional penalty so SA
+                    # is strongly incentivised to drive them to the edge.
+                    if hard:
+                        penalty += 500.0 * delta
         elif ctype in ("NEAR", "FAR", "ALIGN"):
             if b_id is None or b_id not in placements:
                 continue
@@ -114,11 +120,11 @@ def score(placements, constraints, nets, keep_outs=None, board=None):
             if ctype == "NEAR" and max_d is not None and d > max_d:
                 delta = d - max_d
                 penalty = weight * delta
-                violations.append((con_id, d, d - max_d))
+                violations.append((con_id, d, d - max_d, bool(hard)))
             elif ctype == "FAR" and min_d is not None and d < min_d:
                 delta = min_d - d
                 penalty = weight * delta
-                violations.append((con_id, d, d - min_d))
+                violations.append((con_id, d, d - min_d, bool(hard)))
             elif ctype == "ALIGN" and b_id in placements:
                 # penalise non-alignment (centroid Y diff for horizontal align)
                 ax, ay = centroid(pa)

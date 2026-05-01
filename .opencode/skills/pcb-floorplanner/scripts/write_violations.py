@@ -49,7 +49,7 @@ def write_violations(run_id, db_path=DEFAULT_DB):
     }
 
     hard_count = 0
-    for con_id, actual_dist, delta in result["violations"]:
+    for con_id, actual_dist, delta, _hard_flag in result["violations"]:
         is_hard = con_meta.get(con_id, 0)
         if is_hard and delta < 0:
             hard_count += 1
