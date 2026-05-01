@@ -259,14 +259,26 @@ CREATE TABLE IF NOT EXISTS violations (
     created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
+-- Physical body overlaps between component pairs (no FK to constraints —
+-- overlaps are a placement invariant, not a user-defined constraint).
+CREATE TABLE IF NOT EXISTS overlap_violations (
+    id              INTEGER PRIMARY KEY,
+    run_id          INTEGER NOT NULL REFERENCES optimization_runs(id),
+    comp_a          TEXT    NOT NULL,   -- component name
+    comp_b          TEXT    NOT NULL,   -- component name
+    overlap_area_mm2 REAL   NOT NULL,   -- courtyard-level overlap area
+    created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
 CREATE TABLE IF NOT EXISTS placement_score (
-    id                   INTEGER PRIMARY KEY,
-    run_id               INTEGER NOT NULL UNIQUE REFERENCES optimization_runs(id),
-    final_penalty        REAL    NOT NULL,
-    violation_count      INTEGER NOT NULL,
-    hard_violation_count INTEGER NOT NULL,
-    net_length_total     REAL    NOT NULL,
-    created_at           TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    id                      INTEGER PRIMARY KEY,
+    run_id                  INTEGER NOT NULL UNIQUE REFERENCES optimization_runs(id),
+    final_penalty           REAL    NOT NULL,
+    violation_count         INTEGER NOT NULL,
+    hard_violation_count    INTEGER NOT NULL,
+    overlap_violation_count INTEGER NOT NULL DEFAULT 0,
+    net_length_total        REAL    NOT NULL,
+    created_at              TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
 -- ─────────────────────────────────────────────
