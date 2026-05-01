@@ -340,17 +340,6 @@ inaccessible from outside the box.
    MECH-6: Four M3 standoff holes at corners, 5 mm inset. Keep-out 7x7 mm around each.
    ```
 
-   MECH-1: ISA expansion slots must be at the TOP edge (rear panel), oriented so card
-           fingers point toward y=0, cards extend upward out of the board.
-   MECH-2: AT keyboard DIN-5, COM1/COM2 DB9, LPT1 DB25, VGA DB15 must all be at
-           the TOP edge (rear I/O bracket area).
-   MECH-3: AT power connectors P8/P9 must be at the RIGHT edge (PSU bay side).
-   MECH-4: Front panel header (reset, HDD LED, power LED, speaker) must be at the
-           BOTTOM edge (front panel side).
-   MECH-5: No component taller than 15 mm in the zone x=0..30, y=0..148 (PSU shadow).
-   MECH-6: Four M3 standoff holes at corners, 5 mm inset. Keep-out 7×7 mm around each.
-   ```
-
 **Output:** Write the Mechanical Constraints Summary as `notes` on a functional block
 named `MECHANICAL_ARCH` with category `OTHER` using `db_write_arch.py`. This makes the
 constraints visible to every downstream LLM step that reads `functional_blocks`.
