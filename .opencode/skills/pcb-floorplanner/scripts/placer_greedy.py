@@ -111,17 +111,24 @@ def snap(v, res):
 
 
 def fixed_position(name, w, h, W, H, requirements):
-    """Place connectors at their required board edge."""
+    """Return the starting search position for a FIXED connector.
+
+    For edges with multiple connectors the nudge loop will slide along the
+    edge to find a free slot.  We start from the low end of each edge so
+    connectors pack consecutively from one corner rather than all starting
+    from the centre (which causes large connectors to block the centre and
+    leave no room for others on the same edge).
+    """
     edge = requirements.get(name, {}).get("edge", "")
     margin = 1.0
     if edge == "top":
-        return snap((W - w) / 2, 1.0), margin
+        return margin, margin                              # start from left end
     if edge == "bottom":
-        return snap((W - w) / 2, 1.0), snap(H - h - margin, 1.0)
+        return margin, snap(H - h - margin, 1.0)          # start from left end
     if edge == "right":
-        return snap(W - w - margin, 1.0), snap((H - h) / 2, 1.0)
+        return snap(W - w - margin, 1.0), margin          # start from top end
     if edge == "left":
-        return margin, snap((H - h) / 2, 1.0)
+        return margin, margin                              # start from top end
     # fallback centre
     return snap((W - w) / 2, 1.0), snap((H - h) / 2, 1.0)
 
@@ -166,9 +173,14 @@ def greedy_place(version_id, db_path=DEFAULT_DB):
     placements = {}  # comp_id → (x, y)
 
     # --- Pass 1: FIXED connectors (edge-placed) ---
-    for comp_id, comp in components.items():
-        if comp["name"] not in fixed_names:
-            continue
+    # Sort largest-first per edge so bin-packing leaves fewest gaps.
+    fixed_items = [
+        (comp_id, comp)
+        for comp_id, comp in components.items()
+        if comp["name"] in fixed_names
+    ]
+    fixed_items.sort(key=lambda t: -(t[1]["w"] * t[1]["h"]))
+    for comp_id, comp in fixed_items:
         name = comp["name"]
         edge = requirements.get(name, {}).get("edge", "")
         x, y = fixed_position(name, comp["w"], comp["h"], W, H, requirements)
@@ -190,7 +202,15 @@ def greedy_place(version_id, db_path=DEFAULT_DB):
                     placed = True
                     break
         if not placed:
-            # force place even if overlap
+            # No gap found on this edge — force place and log so the LLM
+            # review step can flag the over-commitment to the user.
+            import sys
+            print(
+                f"WARNING: FIXED component '{name}' could not fit on '{edge}' edge "
+                f"({comp['w']}x{comp['h']}mm) — edge may be over-committed. "
+                "Force-placing; expect overlap penalty.",
+                file=sys.stderr,
+            )
             placements[comp_id] = (x, y)
             place_at(comp_id, x, y, comp["w"], comp["h"], comp["cyd"], occupied, RES)
 
