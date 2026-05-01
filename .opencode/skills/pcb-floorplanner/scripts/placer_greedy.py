@@ -126,6 +126,29 @@ def fixed_position(name, w, h, W, H, requirements):
     return snap((W - w) / 2, 1.0), snap((H - h) / 2, 1.0)
 
 
+def _edge_nudge_offsets(edge, W, H, RES, n=400):
+    """Return (ox, oy) offsets that slide along the given edge axis only.
+
+    For top/bottom edges: slide in X (along the edge), then try Y nudge as
+    last resort if board boundary clips.  For left/right edges: slide in Y.
+    This keeps FIXED components pinned to their edge even when a previous
+    component already occupies the ideal centre position.
+    """
+    offsets = []
+    # primary: slide along the edge (up to half-board-width steps)
+    if edge in ("top", "bottom"):
+        max_slide = int(W / RES)
+        for i in range(1, max_slide + 1):
+            offsets.append((i * RES, 0))
+            offsets.append((-i * RES, 0))
+    else:  # left / right
+        max_slide = int(H / RES)
+        for i in range(1, max_slide + 1):
+            offsets.append((0, i * RES))
+            offsets.append((0, -i * RES))
+    return offsets[:n]
+
+
 # ── main greedy placer ────────────────────────────────────────────────────────
 
 
@@ -146,18 +169,27 @@ def greedy_place(version_id, db_path=DEFAULT_DB):
     for comp_id, comp in components.items():
         if comp["name"] not in fixed_names:
             continue
-        x, y = fixed_position(comp["name"], comp["w"], comp["h"], W, H, requirements)
+        name = comp["name"]
+        edge = requirements.get(name, {}).get("edge", "")
+        x, y = fixed_position(name, comp["w"], comp["h"], W, H, requirements)
         x, y = snap(x, RES), snap(y, RES)
-        # nudge until it fits — FIXED components may overlap keep-out zones (they ARE the edge)
-        for attempt in range(200):
-            ox = (attempt % 10) * RES * (1 if attempt % 2 == 0 else -1)
-            oy = (attempt // 10) * RES * (1 if (attempt // 10) % 2 == 0 else -1)
-            tx, ty = snap(x + ox, RES), snap(y + oy, RES)
-            if fits(tx, ty, comp["w"], comp["h"], comp["cyd"], W, H, occupied, RES, ignore_keep_outs=True):
-                placements[comp_id] = (tx, ty)
-                place_at(comp_id, tx, ty, comp["w"], comp["h"], comp["cyd"], occupied, RES)
-                break
+        # Try ideal position first, then slide along the edge axis only.
+        # This keeps connectors pinned to their edge when other FIXED
+        # components already occupy the centre position.
+        placed = False
+        if fits(x, y, comp["w"], comp["h"], comp["cyd"], W, H, occupied, RES, ignore_keep_outs=True):
+            placements[comp_id] = (x, y)
+            place_at(comp_id, x, y, comp["w"], comp["h"], comp["cyd"], occupied, RES)
+            placed = True
         else:
+            for ox, oy in _edge_nudge_offsets(edge, W, H, RES):
+                tx, ty = snap(x + ox, RES), snap(y + oy, RES)
+                if fits(tx, ty, comp["w"], comp["h"], comp["cyd"], W, H, occupied, RES, ignore_keep_outs=True):
+                    placements[comp_id] = (tx, ty)
+                    place_at(comp_id, tx, ty, comp["w"], comp["h"], comp["cyd"], occupied, RES)
+                    placed = True
+                    break
+        if not placed:
             # force place even if overlap
             placements[comp_id] = (x, y)
             place_at(comp_id, x, y, comp["w"], comp["h"], comp["cyd"], occupied, RES)
