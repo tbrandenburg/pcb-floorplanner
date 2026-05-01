@@ -1,0 +1,41 @@
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "14px"}}}%%
+flowchart TD
+    subgraph TABLE["Step × Execution Engine"]
+        direction TB
+
+        S0["<b>Step 0</b> · Design Capture<br/>Engine: <i>LLM</i><br/>────────────────────────────<br/>LLM: parse prompt · identify ICs · infer nets<br/>      write components / nets / requirements → DB<br/>Web:  ✅ BOM · datasheets · reference schematics"]
+
+        S1["<b>Step 1</b> · Board Definition<br/>Engine: <i>LLM + Python</i><br/>────────────────────────────<br/>LLM:    decide form factor · place fixed connectors · keep-outs<br/>Python: validate geometry · write board_outline → DB<br/>Web:    ✅ PCB form-factor specs · mechanical standards"]
+
+        S2["<b>Step 2</b> · Component Geometry<br/>Engine: <i>LLM + Python</i><br/>────────────────────────────<br/>LLM:    identify missing dims · trigger lookups<br/>Python: fetch/parse datasheet PDFs · write geometry + pins → DB<br/>Web:    ✅ package dims · footprint data · courtyard rules"]
+
+        S3["<b>Step 3</b> · Constraint Derivation<br/>Engine: <i>LLM</i><br/>────────────────────────────<br/>LLM: read nets + requirements · apply PCB domain knowledge<br/>      write constraints (NEAR/FAR/FIXED/ALIGN) → DB<br/>Web:  ✅ only if datasheet rule is ambiguous"]
+
+        S4["<b>Step 4</b> · Design Lock<br/>Engine: <i>Python</i><br/>────────────────────────────<br/>Python: FK validation · compute hash · set status=LOCKED<br/>Web:    ✗"]
+
+        S5["<b>Step 5</b> · Initial Placement<br/>Engine: <i>Python</i><br/>────────────────────────────<br/>Python: greedy placer — FIXED → clustered → fill<br/>        write placements + occupancy_grid → DB<br/>Web:    ✗"]
+
+        S6["<b>Step 6</b> · Optimization<br/>Engine: <i>Python</i><br/>────────────────────────────<br/>Python: simulated annealing — move / rotate / swap<br/>        write score_history → DB<br/>Web:    ✗"]
+
+        S7["<b>Step 7</b> · Scoring<br/>Engine: <i>Python</i><br/>────────────────────────────<br/>Python: compute violations · penalties · net length<br/>        write violations + placement_score → DB<br/>Web:    ✗"]
+
+        S8["<b>Step 8</b> · LLM Review<br/>Engine: <i>LLM</i><br/>────────────────────────────<br/>LLM: read violations + score_history · diagnose root cause<br/>      approve / modify constraints / trigger rerun<br/>Web:  ✅ only if new component needed"]
+
+        S9["<b>Step 9</b> · Renderer<br/>Engine: <i>Python</i><br/>────────────────────────────<br/>Python: generate SVG · PNG · heatmap · report.html<br/>        write render_artifacts → DB<br/>Web:    ✗"]
+
+        S0 --> S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8 --> S9
+        S8 -->|"MODIFY constraints"| S3
+        S8 -->|"RERUN optimizer"| S6
+    end
+
+    style S0 fill:#2a1a3a,stroke:#9a6adf,color:#e0d0ff,text-align:left
+    style S1 fill:#1f2a1f,stroke:#5aaa5a,color:#d0f0d0,text-align:left
+    style S2 fill:#1f2a1f,stroke:#5aaa5a,color:#d0f0d0,text-align:left
+    style S3 fill:#2a1a3a,stroke:#9a6adf,color:#e0d0ff,text-align:left
+    style S4 fill:#1a1a1a,stroke:#888888,color:#cccccc,text-align:left
+    style S5 fill:#1a1a2a,stroke:#5a5aaa,color:#d0d0f0,text-align:left
+    style S6 fill:#1a1a2a,stroke:#5a5aaa,color:#d0d0f0,text-align:left
+    style S7 fill:#1a1a2a,stroke:#5a5aaa,color:#d0d0f0,text-align:left
+    style S8 fill:#2a1a3a,stroke:#9a6adf,color:#e0d0ff,text-align:left
+    style S9 fill:#1a2a2a,stroke:#5aaaaa,color:#d0f0f0,text-align:left
+    style TABLE fill:#0d0d0d,stroke:#444

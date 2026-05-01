@@ -1,0 +1,9 @@
+.venv/
+.pytest_cache/
+__pycache__/
+*.pyc
+current_render.png
+floorplan_check.png
+pcb_cairo.py
+pcb_matplotlib.py
+pcb_shapely.py

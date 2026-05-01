@@ -1,0 +1,73 @@
+flowchart TD
+    DB[("SQLite DB\nfloorplan.db")]
+
+    subgraph S1["Step 1 · Board Definition"]
+        S1A["board_outline\n─────────────\nwidth, height,\ngrid_resolution,\nlayer_count"]
+        S1B["keep_out_zones\n─────────────\nid, x, y, w, h,\nreason"]
+        S1C["mount_holes\n─────────────\nid, x, y, diameter"]
+    end
+
+    subgraph S2["Step 2 · Component Registry"]
+        S2A["components\n─────────────\nid, name, type,\nwidth, height,\nfixed, side,\nallowed_rotations"]
+        S2B["pins\n─────────────\ncomponent_id,\npin_id, rel_x, rel_y,\nnet_name"]
+    end
+
+    subgraph S3["Step 3 · Constraint Definition"]
+        S3A["constraints\n─────────────\nid, type [NEAR/FAR],\ncomp_a, comp_b,\nmin_dist, max_dist,\nweight, hard(bool)"]
+        S3B["net_connections\n─────────────\nnet_name, comp_id,\npin_id"]
+    end
+
+    subgraph S4["Step 4 · Initial Placement"]
+        S4A["placements\n─────────────\nrun_id, comp_id,\nx, y, rotation,\nside, status\n[FIXED/PLACED/UNPLACED]"]
+        S4B["occupancy_grid\n─────────────\nrun_id, cell_x, cell_y,\ncomp_id"]
+    end
+
+    subgraph S5["Step 5 · Optimizer"]
+        S5A["optimization_runs\n─────────────\nrun_id, algorithm,\nT_start, T_min,\ncooling_rate,\nmax_iter, timestamp"]
+        S5B["score_history\n─────────────\nrun_id, iteration,\ntotal_penalty,\nconstraint_penalty,\noverlap_penalty,\nnet_length_est"]
+    end
+
+    subgraph S6["Step 6 · Scoring & Violations"]
+        S6A["violations\n─────────────\nrun_id, constraint_id,\ncomp_a, comp_b,\nactual_dist,\nrequired_dist, delta"]
+        S6B["placement_score\n─────────────\nrun_id, final_penalty,\nviolation_count,\nhard_violation_count,\nnet_length_total"]
+    end
+
+    subgraph S7["Step 7 · Renderer"]
+        S7A["render_artifacts\n─────────────\nrun_id, artifact_type\n[SVG/PNG/REPORT],\nfile_path, created_at"]
+    end
+
+    S1A & S1B & S1C --> DB
+    S2A & S2B --> DB
+    S3A & S3B --> DB
+
+    DB -->|"board_outline\nkeep_out_zones"| S4
+    DB -->|"components"| S4
+    DB -->|"constraints"| S4
+    S4A & S4B --> DB
+
+    DB -->|"placements\noccupancy_grid\nconstraints\nnet_connections"| S5
+    S5A & S5B --> DB
+
+    DB -->|"placements\nconstraints\nnet_connections"| S6
+    S6A & S6B --> DB
+
+    DB -->|"placements\noccupancy_grid\nviolations\nplacement_score\nscore_history\nboard_outline"| S7
+    S7A --> DB
+
+    S4 -.->|"optional artifact\nplacement PNG"| ART1[/"initial_placement.png"/]
+    S5 -.->|"optional artifact\nconvergence plot"| ART2[/"score_history.png"/]
+    S6 -.->|"optional artifact\nviolation report"| ART3[/"violations.txt"/]
+    S7 -->|"final artifacts"| ART4[/"floorplan.svg\nfloorplan.png\nreport.html"/]
+
+    style DB fill:#1a3a5c,stroke:#4a90d9,color:#cce4ff
+    style S1 fill:#1a2a1a,stroke:#3a7a3a
+    style S2 fill:#1a2a1a,stroke:#3a7a3a
+    style S3 fill:#2a1a1a,stroke:#7a3a3a
+    style S4 fill:#1a1a2a,stroke:#3a3a7a
+    style S5 fill:#2a1a2a,stroke:#7a3a7a
+    style S6 fill:#2a2a1a,stroke:#7a7a3a
+    style S7 fill:#1a2a2a,stroke:#3a7a7a
+    style ART1 fill:#0d0d0d,stroke:#555
+    style ART2 fill:#0d0d0d,stroke:#555
+    style ART3 fill:#0d0d0d,stroke:#555
+    style ART4 fill:#0d1a0d,stroke:#3a7a3a
