@@ -23,11 +23,11 @@ No data is passed between steps as arguments — the DB is the contract.
 | Step | Name | Engine |
 |---|---|---|
 | 0 | User prompt intake | LLM |
-| 0.5 | Hardware architecture — functional blocks, IC selection, ADRs | LLM + Web |
-| 1 | BOM + netlist — components, packages, nets, requirements | LLM + Web |
-| 2 | Board definition — outline, keep-outs, mount holes | LLM + Web + Python |
-| 3 | Component geometry — footprint sizes, courtyard margins | LLM + Web + Python |
-| 4 | Constraint derivation — NEAR/FAR/FIXED/ALIGN rules | LLM + Web |
+| 0.5 | Hardware architecture — functional blocks, IC selection, ADRs | LLM |
+| 1 | BOM + netlist — components, packages, nets, requirements | LLM |
+| 2 | Board definition — outline, keep-outs, mount holes | LLM + Python |
+| 3 | Component geometry — footprint sizes, courtyard margins | LLM + Python |
+| 4 | Constraint derivation — NEAR/FAR/FIXED/ALIGN rules | LLM |
 | 5 | Design lock — version frozen, SHA-256 hash stored | Python |
 | 6 | Initial placement — FIXED first, NEAR clusters, greedy fill | Python |
 | 7 | Simulated annealing — minimises penalty across 5k–30k iterations | Python |
@@ -35,6 +35,10 @@ No data is passed between steps as arguments — the DB is the contract.
 | 9 | Render — PNG floorplan, occupancy heatmap, HTML report | Python |
 | 9.5 | Visual inspection — adversarial checklist against rendered PNG | LLM |
 | 10 | LLM review + decision — APPROVE / MODIFY / RERUN | LLM |
+
+LLM steps at 0.5, 1, 2, 3, and 4 include mandatory evidence-based web research and
+fact-checking for all major unknowns (IC packages, board dimensions, clearance rules).
+The agent decides how to research — facts are never made up.
 
 ---
 
@@ -195,6 +199,7 @@ Load the skill in your OpenCode session and say: *"Create a floorplan for…"*
 **Stats:** 32 components · 11 nets · 31 constraints · 100k SA iterations · 0 hard violations
 
 **Key design choices (DIY mindset):**
+
 - ATmega32U4 — native USB MIDI device mode, no USB bridge chip needed
 - PWM audio via OC1A/OC1B + 1k/100nF RC low-pass filter — no DAC required
 - AT24C256 EEPROM via I2C — 32KB for non-volatile MIDI loop storage

@@ -42,7 +42,7 @@ Read the full step-by-step reference before starting:
 For each LLM step:
 
 1. Read required DB context (run `db_read_*.py` script, parse JSON output)
-2. Reason + optionally call `web_search.py` for datasheet/spec lookups
+2. Reason — perform evidence-based web research and fact-check for major unknowns where indicated; do not make up facts
 3. Produce structured JSON payload
 4. Call `db_write_*.py` script with the payload
 5. Verify output row count matches expectation
@@ -58,11 +58,11 @@ For each Python step:
 | Step | Name | Engine | Write script |
 |---|---|---|---|
 | 0 | User Prompt Intake | LLM | `db_write_session.py` |
-| 0.5 | Hardware Architecture | LLM + Web | `db_write_arch.py` |
-| 1 | Design Capture — BOM + Netlist | LLM + Web | `db_write_bom.py` |
-| 2 | Board Definition | LLM + Web + Python | `db_write_board.py` |
-| 3 | Component Geometry Resolution | LLM + Web + Python | `db_write_geometry.py` |
-| 4 | Constraint Derivation | LLM + Web | `db_write_constraints.py` |
+| 0.5 | Hardware Architecture | LLM | `db_write_arch.py` |
+| 1 | Design Capture — BOM + Netlist | LLM | `db_write_bom.py` |
+| 2 | Board Definition | LLM + Python | `db_write_board.py` |
+| 3 | Component Geometry Resolution | LLM + Python | `db_write_geometry.py` |
+| 4 | Constraint Derivation | LLM | `db_write_constraints.py` |
 | 5 | Design Lock | Python | `db_lock_version.py` |
 | 6 | Initial Placement | Python | `placer_greedy.py` |
 | 7 | Optimization | Python | `optimizer_annealing.py` |
@@ -272,7 +272,9 @@ python scripts/db_write_review.py \
 - Flag critical interfaces: bus type + speed (e.g. LPDDR4X @ 3200 MT/s, PCIe Gen2)
 - Document each major decision as: decision / rationale / alternatives / risk
 - Produce an ASCII block diagram showing signal flow between blocks
-- Web search: `"{device} hardware design guide"`, `"{SoC} reference schematic"`
+- **Web research:** for every candidate SoC or major IC, perform an evidence-based web research
+  and fact-check — confirm the part exists, its package, bus interfaces, and typical reference
+  design topology. Do not invent IC families or interface speeds.
 
 ### Step 1 — BOM + Netlist
 
@@ -283,6 +285,9 @@ python scripts/db_write_review.py \
   - `far: <ref>` — must be separated (switching reg from ADC, RF from digital)
   - `edge: <side>` — connector forced to board edge: `top` (y≈0), `bottom` (y≈H), `left` (x≈0), `right` (x≈W)
   - `max_temp_c: <N>` — thermal constraint
+- **Web research:** for every component with an unknown or uncertain package, pin count, or
+  power rail requirement, perform an evidence-based web research and fact-check before
+  writing the BOM entry. Do not guess packages or pin names.
 
 ### Step 2 — Board Definition
 
@@ -292,6 +297,10 @@ python scripts/db_write_review.py \
 - `"top"` edge in `requirements` → low `y` values (≈ 0).
 - `"bottom"` edge → high `y` values (≈ `height_mm`).
 - This matches the render output: top of PNG = top of board = y=0.
+- **Web research:** if a standard form factor applies (Raspberry Pi HAT, Arduino shield,
+  Eurorack, etc.), perform an evidence-based web research and fact-check to confirm exact
+  board dimensions, mounting hole positions, and edge-connector locations. Do not invent
+  dimensions for established form factors.
 
 **Keep-out zone anti-pattern — do NOT define keep-outs for edge connector zones:**
 
@@ -307,6 +316,13 @@ keep-out for "bottom edge connector zone", the placer will refuse to place conne
 **When `db_write_board.py` writes a keep-out that spans a full edge, it will emit a
 `WARNING` to stderr.** If you see that warning, remove the full-edge keep-out.
 
+### Step 3 — Component Geometry Resolution
+
+- **Web research:** for every component, perform an evidence-based web research and
+  fact-check to determine the exact body dimensions (width × height in mm) for the assigned
+  package. Use manufacturer datasheet land pattern or IPC-7351 courtyard values where
+  available. Do not estimate or copy dimensions from a different package family.
+
 ### Step 4 — Constraint Derivation
 
 - FAR constraints: switching regulator >10 mm from ADC; RF >10 mm from digital logic
@@ -314,6 +330,10 @@ keep-out for "bottom edge connector zone", the placer will refuse to place conne
 - Hard constraints (hard=1): FIXED positions, zero-overlap rule
 - Soft constraints (hard=0): NEAR/FAR distances with tunable weight
 - Always include a reason string — used verbatim in violation reports
+- **Web research:** for any constraint distance that depends on a specific standard or
+  datasheet rule (e.g. DDR4 trace-length matching tolerance, USB differential pair spacing,
+  crystal load capacitance proximity), perform an evidence-based web research and fact-check
+  before setting `max_dist_mm` or `min_dist_mm`. Do not invent clearance values.
 
 ### Step 9 — Render + Export
 
@@ -519,7 +539,7 @@ python scripts/write_violations.py --run_id <id>
 python scripts/render_png.py --run_id <id>
 ```
 
-3. Re-enter at Step 9.5 (visual inspection).
+1. Re-enter at Step 9.5 (visual inspection).
 
 ### The golden rule for all modify cycles
 
