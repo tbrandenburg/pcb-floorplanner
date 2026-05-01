@@ -73,8 +73,8 @@ The database is created automatically on first use. No setup required.
 
 | Target | Description |
 |---|---|
-| `make db-init` | Initialise `db/floorplan.db` (prompts before overwriting) |
-| `make db-init FORCE=1` | Force-reinitialise without prompting |
+| `make db-init` | Wipe and reinitialise `db/floorplan.db` (prompts before overwriting) |
+| `make db-init FORCE=1` | Wipe and reinitialise without prompting |
 | `make db-verify` | Run 17 schema integrity tests against live DB |
 | `make db-status` | Show all design versions and optimisation runs |
 | `make db-summary` | Component count, violations, and latest score |
