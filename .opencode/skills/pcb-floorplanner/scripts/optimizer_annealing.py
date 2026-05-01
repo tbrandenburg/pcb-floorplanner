@@ -13,7 +13,7 @@ _here = Path(__file__).resolve()
 _db_dir = next(p / "db" for p in _here.parents if (p / "db" / "db_init.py").exists())
 sys.path.insert(0, str(_db_dir))
 from db_init import connect, DEFAULT_DB
-from scorer import load_run, score, centroid
+from scorer import load_run, score
 
 LOG_EVERY = 100   # write score_history row every N iterations
 

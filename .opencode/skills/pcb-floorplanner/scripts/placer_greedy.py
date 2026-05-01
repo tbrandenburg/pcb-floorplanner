@@ -179,8 +179,6 @@ def greedy_place(version_id, db_path=DEFAULT_DB):
                 place_near_anchor(child_id, anchor_id)
 
     # --- Pass 3: Fill remaining row-by-row ---
-    cursor_x, cursor_y = RES * 2, RES * 2
-    row_h = 0.0
     for comp_id, comp in components.items():
         if comp_id in placements:
             continue

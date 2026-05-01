@@ -1,58 +1,10 @@
 """
-Schema integrity tests.
+Schema integrity tests — migrated to tests/unit/.
 Each test is self-contained: uses an in-memory DB, no shared state.
-Tests cover:
-  - happy path inserts through the full pipeline
-  - FK violations are rejected
-  - UNIQUE constraints are enforced
-  - CHECK constraints are enforced
-  - LOCKED version blocks component + constraint inserts
-  - LOCKED version cannot be set back to DRAFT
 """
 import sqlite3
 import pytest
-from pathlib import Path
-
-SCHEMA = (Path(__file__).parent / "schema.sql").read_text()
-
-
-def make_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(":memory:")
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.executescript(SCHEMA)
-    return conn
-
-
-# ── helpers ──────────────────────────────────────────────────────────────────
-
-def seed_session(conn) -> tuple[int, int]:
-    """Insert a session + DRAFT version. Returns (session_id, version_id)."""
-    sid = conn.execute(
-        "INSERT INTO design_sessions(prompt, model) VALUES (?,?)",
-        ("test prompt", "gpt-4o"),
-    ).lastrowid
-    vid = conn.execute(
-        "INSERT INTO design_versions(session_id) VALUES (?)", (sid,)
-    ).lastrowid
-    conn.commit()
-    return sid, vid
-
-
-def seed_component(conn, version_id, name="MCU") -> int:
-    cid = conn.execute(
-        "INSERT INTO components(version_id, name, type) VALUES (?,?,?)",
-        (version_id, name, "SoC"),
-    ).lastrowid
-    conn.commit()
-    return cid
-
-
-def lock_version(conn, version_id):
-    conn.execute(
-        "UPDATE design_versions SET status='LOCKED', hash='abc123' WHERE id=?",
-        (version_id,),
-    )
-    conn.commit()
+from tests.conftest import make_db, seed_session, seed_component, lock_version
 
 
 # ── happy path ────────────────────────────────────────────────────────────────

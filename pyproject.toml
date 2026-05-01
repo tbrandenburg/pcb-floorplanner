@@ -1,0 +1,18 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I"]
+ignore = [
+    "E501",   # line too long — handled by line-length above
+    "E402",   # module-level import not at top — intentional sys.path pattern
+    "I001",   # import sort — mixed stdlib/local pattern is intentional
+    "E401",   # multiple imports on one line — style choice in scripts
+    "E702",   # multiple statements on one line — used in render hot loops
+]
