@@ -78,17 +78,29 @@ cause of boards where connectors are inaccessible from outside the box.
    button, LED, or ventilation feature that must break through the enclosure wall, including
    whether a bracket cutout, card guide rail, or internal cable header is needed.
 
-4. **Identify mechanical constraints on the PCB itself:**
+4. **Check the edge width budget for every accessible face.** Sum the body widths of all
+   connectors and slots assigned to each edge. If the total exceeds the board dimension
+   for that edge, the design is infeasible. Reduce connector count, widen the board, or
+   redistribute connectors to another face before proceeding.
+
+5. **Determine the arrangement axis.** Multiple connectors on the same edge are arranged
+   side-by-side along the edge axis (X for top/bottom, Y for left/right). They are never
+   stacked perpendicular to the edge. For mated-pair connectors (e.g. AT power P8+P9,
+   stacked USB-A), note that the pair must sit flush adjacent with no gap.
+
+6. **Identify mechanical constraints on the PCB itself:**
    standoff positions, corner clearance keep-outs, height-limited zones (below PSU,
    under card guide rails), airflow corridors, connector mating envelopes.
 
-5. **Write a numbered Mechanical Constraints Summary (MECH-N rules).** Each rule is a
-   one-sentence hard requirement, e.g.:
+7. **Write a numbered Mechanical Constraints Summary (MECH-N rules).** Each rule is a
+   one-sentence hard requirement, including edge width totals and pairing notes, e.g.:
 
    ```text
    MECH-1: ISA expansion slots at TOP edge (rear panel). Card fingers toward y=0.
-   MECH-2: Rear I/O bracket connectors (keyboard, serial, parallel, VGA) at TOP edge.
-   MECH-3: AT power connectors P8/P9 at RIGHT edge (PSU bay).
+           Two slots side-by-side along X axis. Total: 2x98=196mm — fits 200mm edge
+           only if no other wide connectors are assigned to that edge.
+   MECH-2: Rear I/O connectors at TOP edge, right section.
+   MECH-3: AT power P8/P9 at RIGHT edge. Mated pair — flush adjacent along Y, no gap.
    MECH-4: Front panel header at BOTTOM edge (power button, reset, LEDs, speaker).
    MECH-5: No component >15 mm tall in zone x=0..30 (PSU shadow zone).
    MECH-6: M3 mount holes at four corners, 5 mm inset. 7x7 mm keep-out around each.
@@ -111,11 +123,14 @@ must read before writing their own outputs.
 **Downstream contract:**
 
 - **Step 0.5** reads `MECHANICAL_ARCH.notes` before selecting any IC or connector.
-  Every connector placement decision must satisfy the MECH-N rules.
-- **Step 1** uses MECH-N rules to set `edge:` requirements for every connector in the BOM.
+  Every connector placement decision must satisfy the MECH-N rules. The edge width budget
+  must be respected — if it is infeasible, the architecture must be adjusted here.
+- **Step 1** uses MECH-N rules to set `edge:` requirements for every connector in the BOM,
+  and re-verifies the width budget with actual component geometry.
   If MECH-1 says ISA slots at TOP, every ISA slot gets `edge: top` in `requirements`.
 - **Step 2** uses MECH-N rules for board dimensions and mount hole positions.
-- **Step 4** promotes MECH-N rules to `FIXED` constraints with `hard=1`.
+- **Step 4** promotes MECH-N rules to `FIXED` constraints with `hard=1`, adds `ALIGN+FAR`
+  for connectors on the same edge, and adds `ALIGN+NEAR` for mated-pair connectors.
 
 ---
 
@@ -135,10 +150,20 @@ must read before writing their own outputs.
 1. Decompose into functional blocks: Compute, Memory, Power, IO, Clocking, Debug, RF (as applicable)
 2. For each block: identify 1–2 preferred IC families with rationale (cost, ecosystem, thermal, availability)
 3. Identify critical interfaces: bus type, speed, width, termination requirements (e.g. LPDDR4X requires matched-length differential pairs)
-4. Flag hard constraints early: thermal budget, power envelope, RF coexistence, regulatory (FCC Part 15, CE), BOM cost ceiling
-5. Document architectural decisions in ADR (Architecture Decision Record) format: decision, rationale, alternatives considered, risk
-6. Produce ASCII block diagram(s) showing logical block topology and signal flow
-7. Render architecture document to Markdown file
+4. **For any high-speed interface, state the maximum allowable centroid-to-centroid distance
+   between the two endpoint ICs.** This is derived from signal frequency, acceptable trace
+   length, and datasheet layout guidelines. Capture it as a note on the relevant block —
+   it becomes a hard NEAR constraint in Step 4.
+   Typical values: CPU↔memory controller ≤15 mm at >20 MHz; MCU↔crystal ≤5 mm;
+   processor↔co-processor ≤10 mm for shared-bus; PMIC↔SoC ≤20 mm.
+5. **For any component group that must form a physical bank** (parallel memory modules,
+   relay banks, identical slot rows, ADC channels), note the group explicitly.
+   Bank members must be placed in a contiguous strip with uniform orientation.
+   This drives ALIGN + chained NEAR constraints in Step 4.
+6. Flag hard constraints early: thermal budget, power envelope, RF coexistence, regulatory (FCC Part 15, CE), BOM cost ceiling
+7. Document architectural decisions in ADR format: decision, rationale, alternatives considered, risk
+8. Produce ASCII block diagram(s) showing logical block topology and signal flow
+9. Render architecture document to Markdown file
 
 **Outputs (DB writes):**
 
@@ -178,7 +203,12 @@ must read before writing their own outputs.
    - **SIG** — single-ended signals (GPIO, SPI, UART, I²C)
    - **DIFF** — differential pairs (USB, PCIe, HDMI, LPDDR DQ/DQS)
 3. Assign each component's relevant pins to nets (logical connectivity)
-4. Capture per-component layout requirements as key-value pairs:
+4. **Re-verify the edge width budget.** Sum connector body widths per edge using Step 3
+   geometry estimates. If any edge is oversubscribed, reduce connector count or flag
+   for board resizing at Step 2.
+5. **Add `near:` requirements for paired connectors** (mated sets that must be flush
+   adjacent). Use a distance equal to the body width of one connector + 1 mm.
+6. Capture per-component layout requirements as key-value pairs:
    - `near: XTAL` — MCU must be close to crystal
    - `far: switching_reg` — ADC must be away from switching regulators
    - `max_temp_c: 85` — thermal requirement
@@ -289,8 +319,8 @@ must read before writing their own outputs.
 - `nets` + `net_connections` — electrical topology (which components share which nets)
 - `requirements` — per-component layout requirements from Step 1
 - Web: IC datasheet layout guidelines, application notes (e.g. "BCM2712 layout recommendations")
-
 **Processing:**
+
 Derive constraints of four types:
 
 - **NEAR** — components that must be placed close together:
@@ -298,6 +328,8 @@ Derive constraints of four types:
   - Crystal oscillator to MCU (max 5 mm, minimise stray capacitance)
   - DDR memory to processor (matched-length topology)
   - PMIC to SoC (short VDD_CORE path = lower IR drop)
+  - High-speed IC pairs from Step 0.5 architecture notes — use `hard=1` and
+    the `max_dist_mm` derived from bus frequency / datasheet guidelines
 - **FAR** — components that must be separated:
   - Switching regulators from ADC inputs (EMI coupling)
   - RF sections from digital logic (isolation >10 mm typical)
@@ -307,10 +339,30 @@ Derive constraints of four types:
   - Mounting holes — already placed in Step 2
   - Status LEDs — human-accessible face
 - **ALIGN** — components that must share an axis:
-  - Connectors on the same edge → aligned to board edge
+  - Connectors on the same edge → all share the same centroid on the perpendicular axis
   - DDR devices in a row (parallel termination topology)
+  - Bank members (SIMM sockets, relay channels) → all share one axis
 
-Each constraint records: type, comp_a, comp_b (if applicable), min/max distance, weight (soft penalty multiplier), hard flag (hard=1 means violation = reject, hard=0 = penalty).
+**Mandatory constraint patterns:**
+
+1. **Same-edge connectors/slots — ALIGN + FAR.**
+   Add `ALIGN` between every adjacent pair on the same edge (same perpendicular centroid).
+   Add `FAR` between every adjacent pair with
+   `min_dist_mm = (width_a/2 + width_b/2 + 2 mm)` to prevent overlap along the edge axis.
+
+2. **Mated-pair connectors — ALIGN + hard NEAR.**
+   Add `ALIGN` and `NEAR` with `max_dist_mm = body_width + 1 mm`, `hard=1`.
+
+3. **High-speed IC pairs — hard NEAR.**
+   Use `hard=1` and `max_dist_mm` from architecture notes or datasheet.
+
+4. **Component banks — ALIGN + chained NEAR.**
+   `ALIGN` all bank members. Add chained `NEAR` between adjacent members with
+   `max_dist_mm = body_width + 2 mm`. Add one `NEAR` from bank to controller
+   with a looser distance (e.g. 30 mm) to keep the bank nearby.
+
+Each constraint records: type, comp_a, comp_b (if applicable), min/max distance,
+weight (soft penalty multiplier), hard flag.
 
 **Outputs (DB writes):**
 

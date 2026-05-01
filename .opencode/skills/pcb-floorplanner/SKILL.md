@@ -328,16 +328,42 @@ inaccessible from outside the box.
 
 5. Identify the standoff grid and convert to mount hole positions + corner keep-outs.
 
-6. Output a **Mechanical Constraints Summary** — a numbered list of hard rules every
-   downstream step must follow. Example:
+   1. **Check the edge width budget for every accessible face.** For each board edge, sum
+      the widths of all connectors and slots assigned to that edge. If the total exceeds
+      the board dimension for that edge, the design is infeasible before placement even
+      starts. Reduce the connector count, widen the board, or redistribute to another edge.
+
+      ```text
+      Example — TOP edge (200 mm wide):
+        2x ISA-16 slot  2 x 98 mm = 196 mm
+        COM1 DB9              32 mm
+        LPT1 DB25             57 mm
+        Keyboard DIN-5        20 mm
+        Total:               305 mm  >  200 mm  ← INFEASIBLE, must redesign
+      ```
+
+   2. **Determine the arrangement axis for each edge.** Multiple connectors or slots on
+      the same edge are arranged side-by-side along the edge axis (X-axis for top/bottom
+      edges, Y-axis for left/right edges). They are **never stacked perpendicular to the
+      edge** — that would make one row inaccessible from outside.
+
+      For connectors that come as a mated pair (e.g. AT power P8+P9, dual USB-A stacked
+      vertically on a bracket), document the pairing explicitly: the two connectors must
+      sit flush against each other, not separated by other components.
+
+   3. Output a **Mechanical Constraints Summary** — a numbered list of hard rules every
+      downstream step must follow. Example:
 
    ```text
    MECH-1: ISA expansion slots at TOP edge (rear panel). Card fingers toward y=0.
-   MECH-2: Keyboard DIN-5, COM1/COM2 DB9, LPT1 DB25, VGA DB15 at TOP edge.
-   MECH-3: AT power connectors P8/P9 at RIGHT edge (PSU bay side).
-   MECH-4: Front panel header at BOTTOM edge (reset, HDD LED, power LED, speaker).
-   MECH-5: No component taller than 15 mm in zone x=0..30, y=0..148 (PSU shadow).
-   MECH-6: Four M3 standoff holes at corners, 5 mm inset. Keep-out 7x7 mm around each.
+           Two slots arranged side-by-side along X. Total slot width: 2x98=196mm —
+           leaves only 4mm for other top-edge connectors; move COM/LPT/KBD to rear
+           bracket or use a single ISA slot.
+   MECH-2: AT power connectors P8/P9 at RIGHT edge. Mated pair: flush adjacent along Y,
+           no gap between them.
+   MECH-3: Front panel header at BOTTOM edge (reset, HDD LED, power LED, speaker).
+   MECH-4: No component taller than 15 mm in zone x=0..30, y=0..148 (PSU shadow).
+   MECH-5: Four M3 standoff holes at corners, 5 mm inset. Keep-out 7x7 mm around each.
    ```
 
 **Output:** Write the Mechanical Constraints Summary as `notes` on a functional block
@@ -345,15 +371,34 @@ named `MECHANICAL_ARCH` with category `OTHER` using `db_write_arch.py`. This mak
 constraints visible to every downstream LLM step that reads `functional_blocks`.
 
 The summary is also the primary input to Step 0.5 — the hardware architect must treat
-each MECH-N rule as a non-negotiable requirement, not a suggestion.
+each MECH-N rule as a non-negotiable requirement, not a suggestion. In particular:
+
+- Edge connector counts must fit within the edge width budget calculated in step 6.
+- Paired connectors (e.g. power P8/P9, dual-port USB) must be noted as requiring
+  flush adjacency with no gap.
+- Multiple slots or connectors on the same edge are side-by-side along the edge axis,
+  never stacked perpendicular to it.
 
 ### Step 0.5 — Hardware Architecture
 
 - **Read `MECHANICAL_ARCH` notes from `functional_blocks` before selecting any IC.**
   Every connector placement decision must satisfy the MECH-N rules from Step 0.25.
+- **Respect the edge width budget.** If the MECH summary flags an infeasible edge, adjust
+  the connector selection here — fewer slots, narrower connectors, or redistribution to
+  another edge — before committing to the BOM.
 - Decompose into: Compute, Memory, Power, IO, Clocking, Debug, RF blocks
 - For each block: name the preferred IC family + rationale (cost, ecosystem, thermal)
 - Flag critical interfaces: bus type + speed (e.g. LPDDR4X @ 3200 MT/s, PCIe Gen2)
+- **For any high-speed interface, state the maximum allowable distance between the two
+  endpoints.** This becomes a hard NEAR constraint in Step 4. Examples:
+  - CPU ↔ memory controller: ≤15 mm at frequencies above 20 MHz
+  - MCU ↔ crystal: ≤5 mm to minimise stray capacitance on load pins
+  - CPU ↔ co-processor (FPU, DSP, GPU): ≤10 mm for direct shared-bus interfaces
+  - PMIC ↔ SoC: ≤20 mm to minimise VDD_CORE IR drop
+- **For any component group that must form a physical bank** (parallel memory modules,
+  relay banks, ADC channels, identical slot rows), note this explicitly. Bank members
+  must be co-located in a contiguous strip with uniform orientation. This becomes an
+  ALIGN + chained NEAR group in Step 4.
 - Document each major decision as: decision / rationale / alternatives / risk
 - Produce an ASCII block diagram showing signal flow between blocks
 - **Web research:** for every candidate SoC or major IC, perform an evidence-based web research
@@ -365,6 +410,14 @@ each MECH-N rule as a non-negotiable requirement, not a suggestion.
 - **Read `MECHANICAL_ARCH` notes from `functional_blocks`.** Every `edge:` requirement
   in `requirements` must match the face mapping established in Step 0.25. If the mechanical
   plan says "ISA slots at TOP edge", every ISA slot gets `edge: top` — not `edge: bottom`.
+- **Re-verify the edge width budget before finalising the BOM.** Sum connector body widths
+  per edge using the geometry from Step 3 (or estimated widths if Step 3 has not run yet).
+  If any edge is oversubscribed, reduce the connector count or flag for board resizing at
+  Step 2 — do not proceed with an infeasible layout.
+- **For paired connectors** (connectors that form a single functional unit and must be
+  inserted together, e.g. AT power P8+P9, dual stacked USB-A), add a `near:` requirement
+  between the pair with a very small value (≤ connector_width + 1 mm). This ensures the
+  constraint is already captured before Step 4 derives the ALIGN+NEAR pair.
 - Use `functional_blocks` as the IC selection guide, not free invention
 - Net types: PWR (rails), GND, SIG (single-ended), DIFF (differential pairs)
 - Requirements key-value pairs to always consider:
@@ -421,6 +474,50 @@ keep-out for "bottom edge connector zone", the placer will refuse to place conne
   datasheet rule (e.g. DDR4 trace-length matching tolerance, USB differential pair spacing,
   crystal load capacitance proximity), perform an evidence-based web research and fact-check
   before setting `max_dist_mm` or `min_dist_mm`. Do not invent clearance values.
+
+**Mandatory constraint patterns — apply these whenever the BOM contains the relevant topology:**
+
+1. **Multiple connectors/slots on the same edge — ALIGN + FAR (arrangement axis).**
+   Connectors on the same edge must be aligned to that edge (same centroid coordinate
+   on the perpendicular axis) and spaced apart along the edge axis. Add:
+
+   - `ALIGN` between every adjacent pair (enforces same Y centroid for top/bottom edges,
+     same X centroid for left/right edges).
+   - `FAR` between every adjacent pair with `min_dist_mm` = half the width of the wider
+     connector + half the width of the narrower connector + 2 mm clearance.
+     This prevents overlap along the edge axis.
+
+   Example — two ISA slots on the top edge, each 98 mm wide:
+   `FAR J1 J2  min_dist_mm=100  reason="ISA slots side-by-side on top edge, no overlap"`
+
+2. **Paired connectors that form a single functional unit — ALIGN + tight NEAR.**
+   Connectors inserted as a mated set (AT power P8/P9, stacked USB-A, Molex pairs)
+   must be flush against each other. Add:
+
+   - `ALIGN` between the pair.
+   - `NEAR` with `max_dist_mm` = body_width_of_one_connector + 1 mm, `hard=1`.
+
+   Example — AT power P8 (14 mm wide) and P9 (14 mm wide):
+   `NEAR J_P8 J_P9  max_dist_mm=15  hard=1  reason="P8/P9 mated pair, must be flush adjacent"`
+
+3. **High-speed IC pairs — hard NEAR.**
+   Any two ICs that share a direct high-speed bus (CPU↔memory controller,
+   MCU↔co-processor, SoC↔DDR, processor↔FPU) must have a hard NEAR constraint.
+   Use `hard=1` and set `max_dist_mm` from the architecture notes (Step 0.5) or
+   from the IC datasheet layout guidelines.
+
+   Example:
+   `NEAR U_CPU U_NB  max_dist_mm=20  hard=1  reason="386DX bus 40MHz, max trace length 20mm"`
+
+4. **Memory/IO banks — ALIGN + chained NEAR.**
+   Components that form a bank (SIMM sockets, DDR devices, relay channels, ADC inputs)
+   must be co-located in a contiguous strip with uniform orientation. Add:
+
+   - `ALIGN` between every adjacent bank member (all share the same centroid on one axis).
+   - Chained `NEAR` between every adjacent pair: SIMM1↔SIMM2, SIMM2↔SIMM3, etc.
+     `max_dist_mm` = body_width + 2 mm clearance, `hard=0` (soft but tight weight ≥ 2.0).
+   - One `NEAR` from the entire bank to the memory controller with a larger
+     `max_dist_mm` (e.g. 30 mm) to keep the bank close without over-constraining it.
 
 ### Step 9 — Render + Export
 
