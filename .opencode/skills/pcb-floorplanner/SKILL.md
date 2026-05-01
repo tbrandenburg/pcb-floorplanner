@@ -58,6 +58,7 @@ For each Python step:
 | Step | Name | Engine | Write script |
 |---|---|---|---|
 | 0 | User Prompt Intake | LLM | `db_write_session.py` |
+| 0.25 | Mechanical Architecture | LLM | `db_write_arch.py` (category: OTHER + notes) |
 | 0.5 | Hardware Architecture | LLM | `db_write_arch.py` |
 | 1 | Design Capture — BOM + Netlist | LLM | `db_write_bom.py` |
 | 2 | Board Definition | LLM + Python | `db_write_board.py` |
@@ -265,8 +266,87 @@ python scripts/db_write_review.py \
 
 ## LLM step guidelines
 
+### Step 0.25 — Mechanical Architecture
+
+This step runs **before any IC is selected**. Its sole purpose is to establish the physical
+reality of the enclosure and derive hard mechanical constraints that all later steps must
+respect. Skipping it is the single most common cause of boards where connectors end up
+inaccessible from outside the box.
+
+**Goal:** Answer four questions before touching the BOM:
+
+1. **What is the enclosure?** (desktop tower, mini-ITX case, custom ABS box, DIN rail,
+   open-frame rack, Eurorack, handheld, wall-mount, etc.)
+2. **Which PCB edges face which physical surfaces?** Map every board edge to a face:
+   - face accessible to the user (rear panel, front panel, top lid, open side)
+   - face blocked by case wall (no connectors possible)
+   - face resting on standoffs (mount hole zone, cable routing)
+3. **What must be reachable from outside?** For each user-accessible face, list every
+   port, slot, button, LED, or ventilation feature that needs to break through the enclosure
+   wall. This drives FIXED constraints in Step 4.
+4. **What mechanical features constrain the PCB?** Standoff grid, screw hole positions,
+   height-limited zones (low-clearance lid), airflow corridors, cable routing channels,
+   connector mating envelopes (ISA/PCI cards need a cutout + guide rail).
+
+**DIY and common design patterns to reason about:**
+
+- **Desktop AT/ATX-style board:** ISA/PCI slots always at the rear panel, perpendicular
+  to the board. I/O bracket connectors (USB, audio, LAN) also at the rear. Front panel
+  (power button, reset, HDD LED, power LED) at the front edge via ribbon header.
+  Power connector near the right edge (closest to the PSU).
+- **SBC / embedded box:** All user I/O on one or two faces. Opposite face is typically
+  mounting/power only. Tall connectors (USB-A, RJ45) constrain the PCB-to-lid clearance.
+- **Eurorack module:** Fixed panel width in HP units. Front panel is the left or right PCB
+  edge; all pots, jacks, and LEDs route to it. Power header at the rear.
+- **Handheld / portable:** Screen and buttons on the front face. Battery connector internal.
+  USB/charging port on one side edge. Board often portrait orientation.
+- **DIN rail / industrial:** Screw terminals always accessible from the front. Status LEDs
+  on the top. Power input on the side. Conformal coating may block some keep-out zones.
+
+**Processing:**
+
+1. Identify enclosure type from the prompt. If unspecified, assume the most common DIY
+   form for the device class (e.g. desktop tower for a PC mainboard, custom ABS box for
+   an MCU project).
+2. Draw a text diagram mapping enclosure faces → PCB edges, e.g.:
+   ```
+   Enclosure: AT desktop tower, board horizontal
+   TOP edge    → rear panel  (accessible: I/O connectors, ISA slots)
+   BOTTOM edge → front panel (accessible: power button, reset, HDD LED)
+   LEFT edge   → left side wall (blocked — no connectors)
+   RIGHT edge  → PSU bay (accessible: AT power connector)
+   Board rests on standoffs at corners + centre
+   ```
+3. For each accessible face, list what must be there and whether it needs a cutout, a
+   bracket slot, or just a header (for an internal cable).
+4. Identify height-limited zones (e.g. below the PSU bay, below a GPU card) and mark
+   them as keep-out zones for tall components.
+5. Identify the standoff grid and convert to mount hole positions + corner keep-outs.
+6. Output a **Mechanical Constraints Summary** — a numbered list of hard rules every
+   downstream step must follow. Example:
+   ```
+   MECH-1: ISA expansion slots must be at the TOP edge (rear panel), oriented so card
+           fingers point toward y=0, cards extend upward out of the board.
+   MECH-2: AT keyboard DIN-5, COM1/COM2 DB9, LPT1 DB25, VGA DB15 must all be at
+           the TOP edge (rear I/O bracket area).
+   MECH-3: AT power connectors P8/P9 must be at the RIGHT edge (PSU bay side).
+   MECH-4: Front panel header (reset, HDD LED, power LED, speaker) must be at the
+           BOTTOM edge (front panel side).
+   MECH-5: No component taller than 15 mm in the zone x=0..30, y=0..148 (PSU shadow).
+   MECH-6: Four M3 standoff holes at corners, 5 mm inset. Keep-out 7×7 mm around each.
+   ```
+
+**Output:** Write the Mechanical Constraints Summary as `notes` on a functional block
+named `MECHANICAL_ARCH` with category `OTHER` using `db_write_arch.py`. This makes the
+constraints visible to every downstream LLM step that reads `functional_blocks`.
+
+The summary is also the primary input to Step 0.5 — the hardware architect must treat
+each MECH-N rule as a non-negotiable requirement, not a suggestion.
+
 ### Step 0.5 — Hardware Architecture
 
+- **Read `MECHANICAL_ARCH` notes from `functional_blocks` before selecting any IC.**
+  Every connector placement decision must satisfy the MECH-N rules from Step 0.25.
 - Decompose into: Compute, Memory, Power, IO, Clocking, Debug, RF blocks
 - For each block: name the preferred IC family + rationale (cost, ecosystem, thermal)
 - Flag critical interfaces: bus type + speed (e.g. LPDDR4X @ 3200 MT/s, PCIe Gen2)
@@ -278,6 +358,9 @@ python scripts/db_write_review.py \
 
 ### Step 1 — BOM + Netlist
 
+- **Read `MECHANICAL_ARCH` notes from `functional_blocks`.** Every `edge:` requirement
+  in `requirements` must match the face mapping established in Step 0.25. If the mechanical
+  plan says "ISA slots at TOP edge", every ISA slot gets `edge: top` — not `edge: bottom`.
 - Use `functional_blocks` as the IC selection guide, not free invention
 - Net types: PWR (rails), GND, SIG (single-ended), DIFF (differential pairs)
 - Requirements key-value pairs to always consider:
@@ -477,6 +560,7 @@ Never unlock a LOCKED version — always create a new `design_version` for any p
 
 | EE feedback | Change at step | Re-enter at step |
 |---|---|---|
+| Mechanical rethink ("connectors on wrong face", "board won't fit in enclosure") | 0.25 — revise `MECHANICAL_ARCH` notes, update face mapping | 0.5 |
 | Position override ("move J3 to bottom edge") | 4 — add/update FIXED constraint | 5 |
 | Proximity / separation tune ("C4 too far from U2", "keep switcher away from ADC") | 4 — adjust NEAR/FAR `max_dist_mm`, `min_dist_mm`, `weight`, `hard` | 5 |
 | Board size or keep-out change ("board too narrow", "add RF keep-out") | 2 — new `board_outline` / `keep_out_zones` in new version | 5 |

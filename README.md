@@ -16,13 +16,14 @@ scores violations, and renders a PNG — all in one session.
 
 ## How it works
 
-An LLM-guided 11-step pipeline alternates between AI reasoning and deterministic Python.
+An LLM-guided 12-step pipeline alternates between AI reasoning and deterministic Python.
 All state lives in a single SQLite database (`db/floorplan.db`).
 No data is passed between steps as arguments — the DB is the contract.
 
 | Step | Name | Engine |
 |---|---|---|
 | 0 | User prompt intake | LLM |
+| 0.25 | **Mechanical architecture** — enclosure type, face mapping, MECH-N rules | LLM |
 | 0.5 | Hardware architecture — functional blocks, IC selection, ADRs | LLM |
 | 1 | BOM + netlist — components, packages, nets, requirements | LLM |
 | 2 | Board definition — outline, keep-outs, mount holes | LLM + Python |
@@ -36,7 +37,14 @@ No data is passed between steps as arguments — the DB is the contract.
 | 9.5 | Visual inspection — adversarial checklist against rendered PNG | LLM |
 | 10 | LLM review + decision — APPROVE / MODIFY / RERUN | LLM |
 
-LLM steps at 0.5, 1, 2, 3, and 4 include mandatory evidence-based web research and
+**Step 0.25 runs before any IC is selected.** It establishes the physical reality of the
+enclosure — which PCB edges face which surfaces, what must be reachable from outside, where
+standoffs and height-limited zones are — and writes a numbered set of hard mechanical rules
+(MECH-N) that every downstream step treats as non-negotiable. This is the step most often
+skipped in hobby builds, and its absence is the single most common cause of boards where
+connectors are inaccessible from outside the box.
+
+LLM steps at 0.25, 0.5, 1, 2, 3, and 4 include mandatory evidence-based web research and
 fact-checking for all major unknowns (IC packages, board dimensions, clearance rules).
 The agent decides how to research — facts are never made up.
 

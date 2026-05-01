@@ -39,6 +39,87 @@ Engine key:
 
 ---
 
+## Step 0.25 — Mechanical Architecture
+
+**Engine:** LLM
+
+**Goal:** Before any IC is selected, establish the physical reality of the enclosure and
+derive hard mechanical constraints that all later pipeline steps must respect. This is the
+step most often skipped in hobby/DIY projects — and its absence is the single most common
+cause of boards where connectors are inaccessible from outside the box.
+
+**Inputs:**
+
+- `design_sessions.prompt` — enclosure type, board size, form factor (explicit or implied)
+- Common DIY enclosure patterns (desktop tower, mini-ITX, custom ABS box, Eurorack,
+  handheld, DIN rail, open-frame rack, wall-mount)
+
+**Processing:**
+
+1. **Identify the enclosure.** If unspecified in the prompt, infer from device class:
+   - PC mainboard → AT/ATX desktop tower
+   - SBC → custom ABS/acrylic box or open frame
+   - Synthesiser module → Eurorack
+   - Industrial controller → DIN rail enclosure
+   - Handheld → custom moulded case
+
+2. **Map PCB edges to enclosure faces.** Draw a text diagram, e.g.:
+   ```
+   Enclosure: AT desktop tower, board horizontal (landscape)
+   TOP edge    → rear panel  (user-accessible: I/O connectors, expansion slots)
+   BOTTOM edge → front panel (user-accessible: power button, reset, drive LEDs)
+   LEFT edge   → left side wall (blocked — no connectors allowed)
+   RIGHT edge  → PSU bay (user-accessible: AT power connector P8/P9)
+   Board sits on 4–6 standoffs; height above floor ≈ 20 mm
+   ```
+
+3. **List per-face requirements.** For each accessible face, enumerate every port, slot,
+   button, LED, or ventilation feature that must break through the enclosure wall, including
+   whether a bracket cutout, card guide rail, or internal cable header is needed.
+
+4. **Identify mechanical constraints on the PCB itself:**
+   - Standoff positions → mount hole coordinates
+   - Corner clearance (standoff head diameter + washer) → keep-out zones
+   - Height-limited zones (below PSU, under card guide rails) → keep-outs for tall components
+   - Airflow corridors (fan inlet/outlet) → no tall components blocking flow
+   - Connector mating envelopes (ISA/PCI cards need space to insert/remove perpendicular to board)
+
+5. **Write a numbered Mechanical Constraints Summary (MECH-N rules).** Each rule is a
+   one-sentence hard requirement, e.g.:
+   ```
+   MECH-1: ISA expansion slots at TOP edge (rear panel). Card fingers toward y=0.
+   MECH-2: Rear I/O bracket connectors (keyboard, serial, parallel, VGA) at TOP edge.
+   MECH-3: AT power connectors P8/P9 at RIGHT edge (PSU bay).
+   MECH-4: Front panel header at BOTTOM edge (power button, reset, LEDs, speaker).
+   MECH-5: No component >15 mm tall in zone x=0..30 (PSU shadow zone).
+   MECH-6: M3 mount holes at four corners, 5 mm inset. 7×7 mm keep-out around each.
+   ```
+
+**Outputs (DB writes):**
+
+- One `functional_blocks` row: `name=MECHANICAL_ARCH`, `category=OTHER`,
+  `notes=<full Mechanical Constraints Summary text>`
+
+This block is intentionally not connected to any other block. It exists solely as a
+persistent, queryable record of the mechanical decisions that all downstream LLM steps
+must read before writing their own outputs.
+
+**Helper scripts:**
+
+- `db_write_arch.py` — pass a single block with `category: "OTHER"` and the full
+  Mechanical Constraints Summary in `notes`
+
+**Downstream contract:**
+
+- **Step 0.5** reads `MECHANICAL_ARCH.notes` before selecting any IC or connector.
+  Every connector placement decision must satisfy the MECH-N rules.
+- **Step 1** uses MECH-N rules to set `edge:` requirements for every connector in the BOM.
+  If MECH-1 says ISA slots at TOP, every ISA slot gets `edge: top` in `requirements`.
+- **Step 2** uses MECH-N rules for board dimensions and mount hole positions.
+- **Step 4** promotes MECH-N rules to `FIXED` constraints with `hard=1`.
+
+---
+
 ## Step 0.5 — Hardware Architecture
 
 **Engine:** LLM + Web
