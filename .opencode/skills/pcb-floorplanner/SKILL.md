@@ -146,6 +146,88 @@ python scripts/db_write_session.py --prompt "<same prompt>" --model "<model>"
 python scripts/db_lock_version.py --version_id <new_id>
 ```
 
+## EE review — feedback entrypoints
+
+After the floorplan is rendered, an electrical engineer will typically review and provide
+feedback. Map their comment to the correct entrypoint and re-enter the pipeline from there.
+Never unlock a LOCKED version — always create a new `design_version` for any post-lock change.
+
+### Feedback type → entrypoint table
+
+| EE feedback | Change at step | Re-enter at step |
+|---|---|---|
+| Position override ("move J3 to bottom edge") | 4 — add/update FIXED constraint | 5 |
+| Proximity / separation tune ("C4 too far from U2", "keep switcher away from ADC") | 4 — adjust NEAR/FAR `max_dist_mm`, `min_dist_mm`, `weight`, `hard` | 5 |
+| Board size or keep-out change ("board too narrow", "add RF keep-out") | 2 — new `board_outline` / `keep_out_zones` in new version | 5 |
+| Component swap or BOM edit ("replace BCM2712 with RK3588", "add clock buffer") | 1 — update `components`, `nets`, `net_connections`, `requirements` | 3 |
+| Architecture rethink ("use PMIC instead of discretes", "switch to PCIe Gen 3") | 0.5 — revise `functional_blocks`, `block_connections` | 1 |
+| Same design, different SA outcome ("try another seed") | — no DB change needed | 6 — new `optimization_runs` row, different random seed |
+
+### Position override (FIXED constraint)
+
+EE says: "J3 must be on the bottom edge at x=40 mm."
+
+1. Create new version (copy BOM + geometry + board from prior version).
+2. In Step 4: add or replace the FIXED constraint for J3 with `x_target`, `y_target`, `hard=1`.
+3. Re-enter at Step 5.
+
+### Proximity / separation tuning (NEAR / FAR / ALIGN)
+
+EE says: "C4 decoupling cap is 4 mm from U2 — tighten to ≤1.5 mm" or
+"Switcher L1 is too close to ADC U5 — enforce ≥12 mm separation."
+
+1. Create new version.
+2. In Step 4: update the relevant constraint row (`max_dist_mm`, `min_dist_mm`, `weight`).
+   Escalate `hard=0` to `hard=1` if the EE marks it as mandatory.
+3. Re-enter at Step 5.
+
+### Board geometry change (outline / keep-outs / mount holes)
+
+EE says: "Board needs to be 90 mm wide, not 85 mm" or "Add a 10×10 mm keep-out for the RF antenna."
+
+- **If no optimization runs exist yet** on the current version: use `db_patch_board.py` in-place.
+- **If optimization has already run**: create a new version, re-run Step 2 with corrected values.
+- Re-enter at Step 5.
+
+### Component substitution or BOM change
+
+EE says: "Replace the SoC with RK3588S" or "Add a dedicated LDO for the ADC supply."
+
+1. Create new version.
+2. In Step 1: update `components`, `nets`, `net_connections`, `requirements` for the change.
+3. Re-enter at Step 3 (re-derive geometry for any new/changed parts), then 4 → 5 → …
+
+### Architecture rework
+
+EE says: "Use a single PMIC instead of three discrete regulators" or "Add a PCIe switch."
+
+1. Create new version.
+2. In Step 0.5: revise `functional_blocks` and `block_connections`.
+3. Re-enter at Step 1 — full BOM re-capture required.
+
+### Rerun with different SA seed (no design change)
+
+EE says: "The placement looks locally stuck — try again."
+
+1. No new version needed — same LOCKED version.
+2. Clear `score_history`, `violations`, `placement_score` for the run (or create a fresh
+   `optimization_runs` row with a different `random_seed` param).
+3. Re-enter at Step 6.
+
+### The golden rule for all modify cycles
+
+```text
+1. Create a new design_version (DRAFT) for the same session
+2. Copy unchanged tables from the old version
+3. Apply only the EE's change to the relevant table(s)
+4. Lock the new version  →  Step 5
+5. Re-run Steps 6–10
+6. Compare versions: make db-status / make db-summary
+```
+
+Every iteration of EE feedback produces a separately scored, separately rendered version.
+Use `make db-status` to list all versions and `make db-summary` to compare scores.
+
 ## Render output
 
 Step 10 produces in `output/`:
