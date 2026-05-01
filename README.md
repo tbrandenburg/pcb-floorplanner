@@ -55,20 +55,17 @@ The agent decides how to research — facts are never made up.
 ## Quick start
 
 ```bash
-# 1. Create a fresh database
-python db/db_init.py
-# Non-interactive (CI / automation):
-python db/db_init.py --force
-# Or via Makefile:
-make db-init FORCE=1
-
-# 2. Activate the virtualenv (cairocffi, shapely, matplotlib)
+# 1. Activate the virtualenv (cairocffi, shapely, matplotlib)
 source .venv/bin/activate
 
-# 3. Load the skill in your OpenCode session and say:
+# 2. Load the skill in your OpenCode session and say:
 #    "Create a floorplan for …"
-# The skill guides the full pipeline automatically.
 ```
+
+The database is created automatically on first use. No setup required.
+
+`make db-init` is available if you need to wipe and reinitialise the DB manually
+(e.g. starting a completely fresh design from scratch).
 
 ---
 

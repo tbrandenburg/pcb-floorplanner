@@ -22,14 +22,14 @@ No data is passed between steps as arguments — the DB is the contract.
 
 ```bash
 # From project root (workspace/floorplan/)
-python db/db_init.py          # create schema + DB (prompts if DB exists)
-python db/db_init.py --force  # non-interactive reinitialise (automation / CI)
-make db-init FORCE=1          # same via Makefile
 source .venv/bin/activate     # shapely, cairocffi, matplotlib installed
 ```
 
-DB path: `db/floorplan.db` (default in all scripts)
-All helper scripts: `skills/pcb-floorplanner/scripts/`
+The database is created automatically on first use — `connect()` runs the schema
+when the file does not yet exist. No manual `db_init` call is needed before starting.
+
+`python db/db_init.py --force` (or `make db-init FORCE=1`) is available as an
+administrative reset if you need to wipe the DB and start a new design from scratch.
 
 ## Workflow overview
 

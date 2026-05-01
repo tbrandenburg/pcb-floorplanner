@@ -10,14 +10,21 @@ DEFAULT_DB = Path(__file__).parent / "floorplan.db"
 
 
 def connect(db_path: Path = DEFAULT_DB) -> sqlite3.Connection:
+    """Open (and auto-initialise if new) the floorplan database."""
+    is_new = not Path(db_path).exists()
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")  # safe concurrent reads
+    if is_new:
+        conn.executescript(SCHEMA.read_text())
+        conn.commit()
     return conn
 
 
 def init(db_path: Path = DEFAULT_DB) -> sqlite3.Connection:
-    conn = connect(db_path)
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(SCHEMA.read_text())
     conn.commit()
     return conn
