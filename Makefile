@@ -86,4 +86,4 @@ example-uno:
 # ── example-rpi4 ──────────────────────────────────────────────────────────────
 example-rpi4:
 	opencode run \
-		"Create a floorplan of a Raspberry Pi 4 Model B. If you have questions - assume the answer with a diy enthusiast mindset."
+		"Create a floorplan of a Raspberry Pi 4 Model B. Base the component placement on the official Raspberry Pi 4 Model B layout. If you have questions - assume the answer with a diy enthusiast mindset."
