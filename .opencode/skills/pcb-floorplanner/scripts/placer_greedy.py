@@ -47,6 +47,19 @@ def load_design(conn, version_id):
         ).fetchall()
     }
 
+    # Build edge map: component name → target edge.
+    # Primary source: constraints.edge (authoritative, set by LLM in Step 4).
+    # Fallback: requirements table (legacy / manual override).
+    edge_from_constraints = {
+        row[0]: row[1]
+        for row in conn.execute(
+            """SELECT ca.name, ct.edge FROM constraints ct
+               JOIN components ca ON ct.comp_a_id=ca.id
+               WHERE ct.version_id=? AND ct.type='FIXED' AND ct.edge IS NOT NULL""",
+            (version_id,),
+        ).fetchall()
+    }
+
     near_pairs = conn.execute(
         """SELECT ca.id, cb.id FROM constraints ct
            JOIN components ca ON ct.comp_a_id=ca.id
@@ -67,6 +80,11 @@ def load_design(conn, version_id):
         (version_id,),
     ).fetchall():
         requirements.setdefault(row[0], {})[row[1]] = row[2]
+
+    # Merge constraints.edge into requirements, taking precedence over any
+    # legacy requirements.edge value so the DB stays the single source of truth.
+    for name, edge in edge_from_constraints.items():
+        requirements.setdefault(name, {})["edge"] = edge
 
     return W, H, RES, components, fixed_names, near_pairs, keep_outs, requirements
 
@@ -122,13 +140,13 @@ def fixed_position(name, w, h, W, H, requirements):
     edge = requirements.get(name, {}).get("edge", "")
     margin = 1.0
     if edge == "top":
-        return margin, margin                              # start from left end
+        return margin, margin  # start from left end
     if edge == "bottom":
-        return margin, snap(H - h - margin, 1.0)          # start from left end
+        return margin, snap(H - h - margin, 1.0)  # start from left end
     if edge == "right":
-        return snap(W - w - margin, 1.0), margin          # start from top end
+        return snap(W - w - margin, 1.0), margin  # start from top end
     if edge == "left":
-        return margin, margin                              # start from top end
+        return margin, margin  # start from top end
     # fallback centre
     return snap((W - w) / 2, 1.0), snap((H - h) / 2, 1.0)
 
@@ -174,11 +192,7 @@ def greedy_place(version_id, db_path=DEFAULT_DB):
 
     # --- Pass 1: FIXED connectors (edge-placed) ---
     # Sort largest-first per edge so bin-packing leaves fewest gaps.
-    fixed_items = [
-        (comp_id, comp)
-        for comp_id, comp in components.items()
-        if comp["name"] in fixed_names
-    ]
+    fixed_items = [(comp_id, comp) for comp_id, comp in components.items() if comp["name"] in fixed_names]
     fixed_items.sort(key=lambda t: -(t[1]["w"] * t[1]["h"]))
     for comp_id, comp in fixed_items:
         name = comp["name"]
@@ -205,6 +219,7 @@ def greedy_place(version_id, db_path=DEFAULT_DB):
             # No gap found on this edge — force place and log so the LLM
             # review step can flag the over-commitment to the user.
             import sys
+
             print(
                 f"WARNING: FIXED component '{name}' could not fit on '{edge}' edge "
                 f"({comp['w']}x{comp['h']}mm) — edge may be over-committed. "

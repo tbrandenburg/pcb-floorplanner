@@ -23,10 +23,16 @@ Input JSON schema:
       "max_dist_mm": null,
       "weight": 1.0,
       "hard": 1,
-      "reason": "USB connector must be at board edge"
+      "edge": "right",
+      "reason": "USB connector must be at right board edge"
     }
   ]
 }
+
+The optional "edge" field on FIXED constraints pins the component to a specific
+board edge ("top", "bottom", "left", "right").  When provided, the scorer and
+greedy placer both use this value directly rather than inferring from text or
+nearest-edge heuristics.  Always provide "edge" for FIXED constraints.
 """
 
 import argparse, json, sys
@@ -38,6 +44,8 @@ _db_dir = next(p / "db" for p in _here.parents if (p / "db" / "db_init.py").exis
 sys.path.insert(0, str(_db_dir))
 from db_init import connect, DEFAULT_DB
 
+VALID_EDGES = {"top", "bottom", "left", "right"}
+
 
 def write_constraints(data: dict, db_path=DEFAULT_DB) -> dict:
     conn = connect(db_path)
@@ -48,9 +56,14 @@ def write_constraints(data: dict, db_path=DEFAULT_DB) -> dict:
 
     count = 0
     for c in data.get("constraints", []):
+        edge = c.get("edge") or None
+        if edge is not None and edge not in VALID_EDGES:
+            raise ValueError(f"Invalid edge '{edge}' — must be one of {sorted(VALID_EDGES)}")
         comp_b_id = comp_map[c["comp_b"]] if c.get("comp_b") else None
         conn.execute(
-            "INSERT INTO constraints(version_id, type, comp_a_id, comp_b_id, min_dist_mm, max_dist_mm, weight, hard, reason) VALUES (?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO constraints"
+            "(version_id, type, comp_a_id, comp_b_id, min_dist_mm, max_dist_mm, weight, hard, reason, edge)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?)",
             (
                 vid,
                 c["type"],
@@ -61,6 +74,7 @@ def write_constraints(data: dict, db_path=DEFAULT_DB) -> dict:
                 c.get("weight", 1.0),
                 c.get("hard", 0),
                 c["reason"],
+                edge,
             ),
         )
         count += 1

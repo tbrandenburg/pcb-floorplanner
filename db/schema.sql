@@ -198,6 +198,7 @@ CREATE TABLE IF NOT EXISTS constraints (
     weight       REAL    NOT NULL DEFAULT 1.0 CHECK(weight > 0),
     hard         INTEGER NOT NULL DEFAULT 0 CHECK(hard IN (0, 1)),
     reason       TEXT    NOT NULL,
+    edge         TEXT             CHECK(edge IN ('top','bottom','left','right')),  -- FIXED only
     created_at   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 

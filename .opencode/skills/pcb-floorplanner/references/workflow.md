@@ -11,6 +11,53 @@ Engine key:
 
 ---
 
+## Coordinate System — MANDATORY reference for all spatial reasoning
+
+```text
+        x = 0                    x = W
+y = 0   ┌────────────────────────┐
+        │        TOP edge        │
+        │                        │
+        │  LEFT            RIGHT │
+        │  edge            edge  │
+        │                        │
+        │       BOTTOM edge      │
+y = H   └────────────────────────┘
+```
+
+- **Origin (0, 0) is the TOP-LEFT corner.**
+- **x increases to the RIGHT.** x = W is the right edge.
+- **y increases DOWNWARD.** y = H is the bottom edge.
+- **"right edge"** means `x ≈ W` (the short or long side on the positive-x boundary).
+- **"top edge"** means `y ≈ 0` (the top horizontal boundary).
+- **"bottom edge"** means `y ≈ H` (the bottom horizontal boundary).
+- **"left edge"** means `x ≈ 0` (the left vertical boundary).
+
+### Edge values for FIXED constraints
+
+Always provide the `"edge"` field on every `FIXED` constraint using one of these
+exact string values: `"top"`, `"bottom"`, `"left"`, `"right"`.
+
+The greedy placer and SA scorer both read this field directly from the database
+and enforce placement on the correct edge. **Never rely on the `reason` text field
+alone — the pipeline ignores it for placement decisions.**
+
+Example — USB connector on the right edge of a 68.6 × 53.4 mm board:
+
+```json
+{
+  "type": "FIXED",
+  "comp_a": "J1",
+  "comp_b": null,
+  "weight": 10.0,
+  "hard": 1,
+  "edge": "right",
+  "reason": "USB-B at right edge (x ≈ 68.6mm), accessible from outside enclosure"
+}
+```
+
+---
+
 ## Step 0 — User Prompt Intake
 
 **Engine:** LLM

@@ -32,7 +32,8 @@ def load_run(conn, run_id):
 
     constraints = conn.execute(
         """SELECT ct.id, ct.type, ct.comp_a_id, ct.comp_b_id,
-                  ct.min_dist_mm, ct.max_dist_mm, ct.weight, ct.hard
+                  ct.min_dist_mm, ct.max_dist_mm, ct.weight, ct.hard,
+                  COALESCE(ct.edge, '')
            FROM constraints ct
            JOIN optimization_runs r ON r.version_id=ct.version_id
            WHERE r.id=?""",
@@ -80,6 +81,10 @@ def score(placements, constraints, nets, keep_outs=None, board=None):
     """
     board: optional (width_mm, height_mm) tuple — required for FIXED edge penalty.
     Coordinate system: y=0 is top edge, y=H is bottom edge (screen coords).
+
+    Constraint tuple format: (id, type, a_id, b_id, min_d, max_d, weight, hard[, edge])
+    The 9th element (edge) is optional for backwards compatibility; when present and
+    non-empty it pins FIXED components to that specific edge rather than the nearest one.
     """
     constraint_penalty = 0.0
     violations = []
@@ -87,28 +92,35 @@ def score(placements, constraints, nets, keep_outs=None, board=None):
     W, H = (board[0], board[1]) if board else (None, None)
 
     for con in constraints:
-        con_id, ctype, a_id, b_id, min_d, max_d, weight, hard = con
+        con_id, ctype, a_id, b_id, min_d, max_d, weight, hard = con[:8]
+        edge = con[8] if len(con) > 8 else ""
         if a_id not in placements:
             continue
 
         if ctype == "FIXED":
-            # Penalise distance from nearest board edge.
-            # Without board dimensions we cannot compute this — skip gracefully.
+            # Penalise distance from the target edge.
+            # If edge is specified (top/bottom/left/right) use that exact edge.
+            # Otherwise fall back to nearest-edge behaviour for backwards compatibility.
             if W is None or H is None:
                 penalty = 0.0
             else:
                 pa = placements[a_id]
                 ax, ay = centroid(pa)
-                dist_from_edge = min(ax, W - ax, ay, H - ay)
-                # dist_from_edge == 0 means centroid is exactly on a board edge.
-                # Penalise proportional to how far inside the board the component sits.
+                if edge == "top":
+                    dist_from_edge = ay  # y=0 is top
+                elif edge == "bottom":
+                    dist_from_edge = H - ay  # y=H is bottom
+                elif edge == "left":
+                    dist_from_edge = ax
+                elif edge == "right":
+                    dist_from_edge = W - ax
+                else:
+                    dist_from_edge = min(ax, W - ax, ay, H - ay)
                 penalty = weight * dist_from_edge
                 threshold = 5.0
                 if dist_from_edge > threshold:
                     delta = dist_from_edge - threshold
                     violations.append((con_id, dist_from_edge, delta, bool(hard)))
-                    # hard=1 FIXED violations get a large additional penalty so SA
-                    # is strongly incentivised to drive them to the edge.
                     if hard:
                         penalty += 500.0 * delta
         elif ctype in ("NEAR", "FAR", "ALIGN"):

@@ -30,8 +30,9 @@ def make_comp(x, y, w, h, cyd=0.0, name="C"):
     return {"x": x, "y": y, "w": w, "h": h, "cyd": cyd, "name": name}
 
 
-def make_constraint(cid, ctype, a_id, b_id=None, min_d=None, max_d=None, weight=1.0, hard=0):
-    return (cid, ctype, a_id, b_id, min_d, max_d, weight, hard)
+def make_constraint(cid, ctype, a_id, b_id=None, min_d=None, max_d=None, weight=1.0, hard=0, edge=None):
+    t = (cid, ctype, a_id, b_id, min_d, max_d, weight, hard)
+    return t + (edge,) if edge is not None else t
 
 
 # ── keep_out_penalty ──────────────────────────────────────────────────────────
@@ -259,6 +260,64 @@ def test_fixed_hard1_penalty_higher_than_soft():
     assert hard_penalty > soft_penalty * 10, (
         f"hard=1 FIXED penalty ({hard_penalty}) should be >10x soft ({soft_penalty})"
     )
+
+
+# ── FIXED edge-specific penalty ───────────────────────────────────────────────
+
+
+def test_fixed_edge_right_zero_when_on_right():
+    """Component centroid at x=W → dist from right edge = 0 → no penalty."""
+    # Board 100x100, component 4x4 placed so centroid at x=100 (right edge).
+    p = {1: make_comp(98, 48, 4, 4)}  # centroid (100, 50)
+    c = [make_constraint(1, "FIXED", 1, weight=1.0, edge="right")]
+    result = score(p, c, [], board=(100, 100))
+    assert result["constraint_penalty"] == pytest.approx(0.0)
+
+
+def test_fixed_edge_right_penalises_left_side():
+    """Component on the left side with edge=right gets max penalty."""
+    p = {1: make_comp(0, 48, 4, 4)}  # centroid (2, 50) → dist from right = 98
+    c = [make_constraint(1, "FIXED", 1, weight=1.0, edge="right")]
+    result = score(p, c, [], board=(100, 100))
+    # dist = 100 - 2 = 98 → penalty = 1.0 * 98
+    assert result["constraint_penalty"] == pytest.approx(98.0)
+
+
+def test_fixed_edge_top_zero_when_on_top():
+    """Component centroid at y=0 with edge=top → no penalty."""
+    p = {1: make_comp(40, 0, 4, 0)}  # centroid (42, 0)
+    c = [make_constraint(1, "FIXED", 1, weight=1.0, edge="top")]
+    result = score(p, c, [], board=(100, 100))
+    assert result["constraint_penalty"] == pytest.approx(0.0)
+
+
+def test_fixed_edge_bottom_zero_when_on_bottom():
+    """Component centroid at y=H with edge=bottom → no penalty."""
+    p = {1: make_comp(40, 100, 4, 0)}  # centroid (42, 100)
+    c = [make_constraint(1, "FIXED", 1, weight=1.0, edge="bottom")]
+    result = score(p, c, [], board=(100, 100))
+    assert result["constraint_penalty"] == pytest.approx(0.0)
+
+
+def test_fixed_edge_left_zero_when_on_left():
+    """Component centroid at x=0 with edge=left → no penalty."""
+    p = {1: make_comp(0, 48, 0, 4)}  # centroid (0, 50)
+    c = [make_constraint(1, "FIXED", 1, weight=1.0, edge="left")]
+    result = score(p, c, [], board=(100, 100))
+    assert result["constraint_penalty"] == pytest.approx(0.0)
+
+
+def test_fixed_edge_right_vs_no_edge_differ_for_left_component():
+    """edge=right and no-edge differ when component is on the left side.
+
+    No-edge uses nearest edge (left, dist=2). edge=right uses right edge (dist=98).
+    So edge-specific penalty must be much larger."""
+    p = {1: make_comp(0, 48, 4, 4)}  # centroid (2, 50)
+    c_no_edge = [make_constraint(1, "FIXED", 1, weight=1.0)]
+    c_right = [make_constraint(1, "FIXED", 1, weight=1.0, edge="right")]
+    pen_no_edge = score(p, c_no_edge, [], board=(100, 100))["constraint_penalty"]
+    pen_right = score(p, c_right, [], board=(100, 100))["constraint_penalty"]
+    assert pen_right > pen_no_edge * 10
 
 
 def test_near_violation_carries_hard_flag():
