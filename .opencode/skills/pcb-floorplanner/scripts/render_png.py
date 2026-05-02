@@ -15,6 +15,7 @@ _here = Path(__file__).resolve()
 _db_dir = next(p / "db" for p in _here.parents if (p / "db" / "db_init.py").exists())
 sys.path.insert(0, str(_db_dir))
 from db_init import connect, DEFAULT_DB
+from db_validate_placements import validate as validate_placements
 
 import cairocffi as cairo
 import numpy as np
@@ -90,6 +91,15 @@ def mm(v):
 
 
 def render_floorplan(run_id, out_dir, db_path=DEFAULT_DB):
+    # Gate: block render if any placement violations exist
+    check = validate_placements(run_id, db_path)
+    if not check["ok"]:
+        msg = "RENDER BLOCKED — placement violations detected:\n" + "\n".join(
+            f"  {v}" for v in check["violations"]
+        )
+        print(msg, file=sys.stderr)
+        sys.exit(1)
+
     conn = connect(db_path)
     board, placements, keep_outs, mount_holes, violations, _ = load_render_data(conn, run_id)
     conn.close()

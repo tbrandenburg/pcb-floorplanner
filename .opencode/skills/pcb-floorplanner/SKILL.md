@@ -406,6 +406,14 @@ each MECH-N rule as a non-negotiable requirement, not a suggestion. In particula
   flush adjacency with no gap.
 - Multiple slots or connectors on the same edge are side-by-side along the edge axis,
   never stacked perpendicular to it.
+- **Classify every connector as through-edge or on-board before assigning FIXED:**
+  - **Through-edge** — body protrudes through or flush with the PCB edge; mating cable/plug
+    exits horizontally through the enclosure wall. Examples: USB-A, USB-C, HDMI, RJ45,
+    DE-9, barrel jack, audio jack. → assign `edge:` requirement → becomes FIXED constraint.
+  - **On-board (ZIF/FFC/FPC)** — body sits flat on the PCB surface; ribbon cable exits
+    vertically (upward) off the board. Examples: MIPI CSI, MIPI DSI, eDP, microSD push-pull
+    slot. These live *near* an edge for cable routing clearance but must **not** be FIXED.
+    → assign `near: <edge-reference-component>` requirement, no `edge:` key.
 
 ### Step 0.5 — Hardware Architecture
 
@@ -451,7 +459,12 @@ each MECH-N rule as a non-negotiable requirement, not a suggestion. In particula
 - Requirements key-value pairs to always consider:
   - `near: <ref>` — must be placed close (decoupling caps, crystals, DDR)
   - `far: <ref>` — must be separated (switching reg from ADC, RF from digital)
-  - `edge: <side>` — connector forced to board edge: `top` (y≈0), `bottom` (y≈H), `left` (x≈0), `right` (x≈W)
+  - `edge: <side>` — **through-edge connectors only** (body exits through the PCB edge):
+    `top` (y≈0), `bottom` (y≈H), `left` (x≈0), `right` (x≈W).
+    **Never assign `edge:` to on-board ZIF/FFC/FPC connectors** (MIPI CSI, MIPI DSI,
+    microSD, eDP). Those sit flat on the board surface with the cable exiting upward —
+    they are not edge-mount and must not be FIXED to the board perimeter.
+    Use `near: <nearby-edge-connector>` for cable-routing proximity instead.
   - `max_temp_c: <N>` — thermal constraint
 - **Web research:** for every component with an unknown or uncertain package, pin count, or
   power rail requirement, perform an evidence-based web research and fact-check before
@@ -488,6 +501,7 @@ This check verifies two things deterministically before any placement runs:
 
 **If `feasible=false`:** fix the design at Step 1 or Step 2 — do NOT proceed to Step 3.
 Common remedies:
+
 - Edge overcommitted → remove a connector, reduce its geometry, or widen the board
 - Corner conflict → move one connector to a different edge, or shorten the body that claims the corner
 

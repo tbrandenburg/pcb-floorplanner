@@ -166,7 +166,7 @@ def test_touching_boundary_not_a_violation(tmp_path):
     rid = _setup(
         db_file,
         comp_positions=[("U1", 10.0, 0.0, 5.0, 5.0)],  # starts at x=10
-        keep_out_zones=[(0.0, 0.0, 10.0, 10.0, "corner")],   # ends at x=10
+        keep_out_zones=[(0.0, 0.0, 10.0, 10.0, "corner")],  # ends at x=10
     )
     result = write_violations(rid, db_file)
     assert result["keep_out_violations"] == 0
@@ -182,22 +182,16 @@ def test_fixed_component_exempt_from_mount_clearance_keep_out(tmp_path):
     db_file = str(tmp_path / "test.db")
     conn = db_init.init(db_file)
 
-    sid = conn.execute(
-        "INSERT INTO design_sessions(prompt, model) VALUES (?,?)", ("test", "test")
-    ).lastrowid
+    sid = conn.execute("INSERT INTO design_sessions(prompt, model) VALUES (?,?)", ("test", "test")).lastrowid
     vid = conn.execute("INSERT INTO design_versions(session_id) VALUES (?)", (sid,)).lastrowid
 
-    cid = conn.execute(
-        "INSERT INTO components(version_id, name, type) VALUES (?,?,?)", (vid, "J1", "CONN")
-    ).lastrowid
+    cid = conn.execute("INSERT INTO components(version_id, name, type) VALUES (?,?,?)", (vid, "J1", "CONN")).lastrowid
     conn.execute(
-        "INSERT INTO component_geometry(component_id, width_mm, height_mm, courtyard_margin)"
-        " VALUES (?,?,?,?)",
+        "INSERT INTO component_geometry(component_id, width_mm, height_mm, courtyard_margin) VALUES (?,?,?,?)",
         (cid, 4.0, 4.0, 0.0),
     )
     conn.execute(
-        "INSERT INTO board_outline(version_id, width_mm, height_mm, grid_resolution)"
-        " VALUES (?,?,?,?)",
+        "INSERT INTO board_outline(version_id, width_mm, height_mm, grid_resolution) VALUES (?,?,?,?)",
         (vid, 100.0, 100.0, 1.0),
     )
     # is_mount_clearance = 1 → FIXED connectors are exempt
@@ -206,12 +200,8 @@ def test_fixed_component_exempt_from_mount_clearance_keep_out(tmp_path):
         " VALUES (?,?,?,?,?,?,1)",
         (vid, 0.0, 0.0, 10.0, 10.0, "mount hole clearance TL"),
     )
-    conn.execute(
-        "UPDATE design_versions SET status='LOCKED', hash='testhash' WHERE id=?", (vid,)
-    )
-    rid = conn.execute(
-        "INSERT INTO optimization_runs(version_id, algorithm) VALUES (?,?)", (vid, "test")
-    ).lastrowid
+    conn.execute("UPDATE design_versions SET status='LOCKED', hash='testhash' WHERE id=?", (vid,))
+    rid = conn.execute("INSERT INTO optimization_runs(version_id, algorithm) VALUES (?,?)", (vid, "test")).lastrowid
     conn.execute(
         "INSERT INTO placements(run_id, component_id, x_mm, y_mm, status) VALUES (?,?,?,?,?)",
         (rid, cid, 1.0, 1.0, "FIXED"),
@@ -230,22 +220,16 @@ def test_fixed_component_violates_non_mount_keep_out(tmp_path):
     db_file = str(tmp_path / "test.db")
     conn = db_init.init(db_file)
 
-    sid = conn.execute(
-        "INSERT INTO design_sessions(prompt, model) VALUES (?,?)", ("test", "test")
-    ).lastrowid
+    sid = conn.execute("INSERT INTO design_sessions(prompt, model) VALUES (?,?)", ("test", "test")).lastrowid
     vid = conn.execute("INSERT INTO design_versions(session_id) VALUES (?)", (sid,)).lastrowid
 
-    cid = conn.execute(
-        "INSERT INTO components(version_id, name, type) VALUES (?,?,?)", (vid, "J1", "CONN")
-    ).lastrowid
+    cid = conn.execute("INSERT INTO components(version_id, name, type) VALUES (?,?,?)", (vid, "J1", "CONN")).lastrowid
     conn.execute(
-        "INSERT INTO component_geometry(component_id, width_mm, height_mm, courtyard_margin)"
-        " VALUES (?,?,?,?)",
+        "INSERT INTO component_geometry(component_id, width_mm, height_mm, courtyard_margin) VALUES (?,?,?,?)",
         (cid, 4.0, 4.0, 0.0),
     )
     conn.execute(
-        "INSERT INTO board_outline(version_id, width_mm, height_mm, grid_resolution)"
-        " VALUES (?,?,?,?)",
+        "INSERT INTO board_outline(version_id, width_mm, height_mm, grid_resolution) VALUES (?,?,?,?)",
         (vid, 100.0, 100.0, 1.0),
     )
     # is_mount_clearance = 0 → FIXED connectors are NOT exempt
@@ -254,12 +238,8 @@ def test_fixed_component_violates_non_mount_keep_out(tmp_path):
         " VALUES (?,?,?,?,?,?,0)",
         (vid, 0.0, 0.0, 10.0, 10.0, "RF antenna no-go zone"),
     )
-    conn.execute(
-        "UPDATE design_versions SET status='LOCKED', hash='testhash' WHERE id=?", (vid,)
-    )
-    rid = conn.execute(
-        "INSERT INTO optimization_runs(version_id, algorithm) VALUES (?,?)", (vid, "test")
-    ).lastrowid
+    conn.execute("UPDATE design_versions SET status='LOCKED', hash='testhash' WHERE id=?", (vid,))
+    rid = conn.execute("INSERT INTO optimization_runs(version_id, algorithm) VALUES (?,?)", (vid, "test")).lastrowid
     conn.execute(
         "INSERT INTO placements(run_id, component_id, x_mm, y_mm, status) VALUES (?,?,?,?,?)",
         (rid, cid, 1.0, 1.0, "FIXED"),

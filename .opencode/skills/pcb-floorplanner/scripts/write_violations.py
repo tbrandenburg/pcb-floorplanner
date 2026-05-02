@@ -46,7 +46,9 @@ def write_violations(run_id, db_path=DEFAULT_DB):
     )
 
     result = score(
-        placements, constraints, nets,
+        placements,
+        constraints,
+        nets,
         keep_outs=keep_outs or None,
         board=board_dims,
         fixed_ids=fixed_ids,

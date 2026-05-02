@@ -69,7 +69,8 @@ def load_design(conn, version_id):
     ).fetchall()
 
     keep_outs = conn.execute(
-        "SELECT x_mm, y_mm, width_mm, height_mm, is_mount_clearance FROM keep_out_zones WHERE version_id=?", (version_id,)
+        "SELECT x_mm, y_mm, width_mm, height_mm, is_mount_clearance FROM keep_out_zones WHERE version_id=?",
+        (version_id,),
     ).fetchall()
 
     requirements = {}
@@ -103,7 +104,7 @@ def cells_for(x, y, w, h, cyd, res):
     return [(cx, cy) for cx in range(cx0, cx1) for cy in range(cy0, cy1)]
 
 
-def fits(x, y, w, h, cyd, W, H, occupied, res, ignore_keep_outs=False):
+def fits(x, y, w, h, cyd, W, H, occupied, res, ignore_keep_outs=False, ignore_fixed_ids=None):
     if x < 0 or y < 0 or x + w > W or y + h > H:
         return False
     for cell in cells_for(x, y, w, h, cyd, res):
@@ -112,6 +113,8 @@ def fits(x, y, w, h, cyd, W, H, occupied, res, ignore_keep_outs=False):
             continue
         if occupant == -1 and ignore_keep_outs:
             continue  # FIXED edge components are allowed to sit in keep-out zones
+        if ignore_fixed_ids and occupant in ignore_fixed_ids:
+            continue  # FIXED components may have courtyard overlap with other FIXED components
         return False
     return True
 
@@ -128,7 +131,7 @@ def snap(v, res):
 # ── fixed-position heuristic ──────────────────────────────────────────────────
 
 
-def fixed_position(name, w, h, W, H, requirements):
+def fixed_position(name, w, h, W, H, requirements, edge_clearances=None):
     """Return the starting search position for a FIXED connector.
 
     For edges with multiple connectors the nudge loop will slide along the
@@ -136,17 +139,28 @@ def fixed_position(name, w, h, W, H, requirements):
     connectors pack consecutively from one corner rather than all starting
     from the centre (which causes large connectors to block the centre and
     leave no room for others on the same edge).
+
+    edge_clearances: optional dict with keys 'left_width', 'right_width',
+    'top_height', 'bottom_height' giving the maximum body dimension of
+    connectors on each edge.  Used to offset the starting position for
+    top/bottom connectors so they don't start in the corner where
+    left/right connectors are already placed.
     """
     edge = requirements.get(name, {}).get("edge", "")
     margin = 1.0
+    ec = edge_clearances or {}
+    # Extra offsets along edge axes to avoid corner conflicts with perpendicular
+    # edge connectors.  Each edge starts away from the two adjacent corners.
+    left_clear = ec.get("left_width", 0.0) + margin
+    top_clear = ec.get("top_height", 0.0) + margin
     if edge == "top":
-        return margin, margin  # start from left end
+        return left_clear, margin  # start after left-edge connectors
     if edge == "bottom":
-        return margin, snap(H - h - margin, 1.0)  # start from left end
+        return left_clear, snap(H - h - margin, 1.0)  # start after left-edge connectors
     if edge == "right":
-        return snap(W - w - margin, 1.0), margin  # start from top end
+        return snap(W - w - margin, 1.0), top_clear  # start after top-edge connectors
     if edge == "left":
-        return margin, margin  # start from top end
+        return margin, top_clear  # start after top-edge connectors
     # fallback centre
     return snap((W - w) / 2, 1.0), snap((H - h) / 2, 1.0)
 
@@ -191,29 +205,67 @@ def greedy_place(version_id, db_path=DEFAULT_DB):
     placements = {}  # comp_id → (x, y)
 
     # --- Pass 1: FIXED connectors (edge-placed) ---
-    # Sort largest-first per edge so bin-packing leaves fewest gaps.
+    # Group by edge, then sort largest-first within each edge group so
+    # bin-packing leaves fewest gaps per edge.  Processing all connectors on
+    # the same edge together prevents a large connector on a different edge
+    # from stealing the only viable slot for a smaller same-edge connector.
     fixed_items = [(comp_id, comp) for comp_id, comp in components.items() if comp["name"] in fixed_names]
-    fixed_items.sort(key=lambda t: -(t[1]["w"] * t[1]["h"]))
+
+    def _edge_sort_key(t):
+        comp_id, comp = t
+        name = comp["name"]
+        edge = requirements.get(name, {}).get("edge", "")
+        edge_order = {"top": 0, "bottom": 1, "left": 2, "right": 3}.get(edge, 4)
+        return (edge_order, -(comp["w"] * comp["h"]))
+
+    fixed_items.sort(key=_edge_sort_key)
+
+    # Compute edge clearances: the maximum body dimension of connectors on each
+    # edge so that perpendicular edges start their connectors after the corner zone.
+    edge_max: dict[str, float] = {"top": 0.0, "bottom": 0.0, "left": 0.0, "right": 0.0}
+    for _, comp in fixed_items:
+        name = comp["name"]
+        edge = requirements.get(name, {}).get("edge", "")
+        if edge in ("left", "right"):
+            edge_max[edge] = max(edge_max[edge], comp["w"] + comp["cyd"])
+        elif edge in ("top", "bottom"):
+            edge_max[edge] = max(edge_max[edge], comp["h"] + comp["cyd"])
+    edge_clearances = {
+        "left_width": edge_max["left"],
+        "right_width": edge_max["right"],
+        "top_height": edge_max["top"],
+        "bottom_height": edge_max["bottom"],
+    }
+
+    # Track placed FIXED IDs per edge so same-edge connectors still respect each
+    # other's footprints while perpendicular-edge connectors' courtyard cells at
+    # shared corners are allowed to overlap.
+    fixed_placed_by_edge: dict[str, set] = {}  # edge → set of comp_ids placed on that edge
     for comp_id, comp in fixed_items:
         name = comp["name"]
         edge = requirements.get(name, {}).get("edge", "")
-        x, y = fixed_position(name, comp["w"], comp["h"], W, H, requirements)
+        x, y = fixed_position(name, comp["w"], comp["h"], W, H, requirements, edge_clearances)
         x, y = snap(x, RES), snap(y, RES)
-        # Try ideal position first, then slide along the edge axis only.
-        # This keeps connectors pinned to their edge when other FIXED
-        # components already occupy the centre position.
+        # Ignore courtyard overlaps with FIXED connectors on OTHER edges only.
+        # Same-edge connectors must not physically overlap each other.
+        other_edge_fixed = set()
+        for other_edge, ids in fixed_placed_by_edge.items():
+            if other_edge != edge:
+                other_edge_fixed.update(ids)
         placed = False
-        if fits(x, y, comp["w"], comp["h"], comp["cyd"], W, H, occupied, RES, ignore_keep_outs=True):
+        if fits(x, y, comp["w"], comp["h"], comp["cyd"], W, H, occupied, RES, ignore_keep_outs=True, ignore_fixed_ids=other_edge_fixed):
             placements[comp_id] = (x, y)
             place_at(comp_id, x, y, comp["w"], comp["h"], comp["cyd"], occupied, RES)
             placed = True
+            fixed_placed_by_edge.setdefault(edge, set()).add(comp_id)
         else:
             for ox, oy in _edge_nudge_offsets(edge, W, H, RES):
                 tx, ty = snap(x + ox, RES), snap(y + oy, RES)
-                if fits(tx, ty, comp["w"], comp["h"], comp["cyd"], W, H, occupied, RES, ignore_keep_outs=True):
+                if fits(tx, ty, comp["w"], comp["h"], comp["cyd"], W, H, occupied, RES, ignore_keep_outs=True, ignore_fixed_ids=other_edge_fixed):
                     placements[comp_id] = (tx, ty)
                     place_at(comp_id, tx, ty, comp["w"], comp["h"], comp["cyd"], occupied, RES)
                     placed = True
+                    fixed_placed_by_edge.setdefault(edge, set()).add(comp_id)
                     break
         if not placed:
             # No gap found on this edge — force place and log so the LLM
