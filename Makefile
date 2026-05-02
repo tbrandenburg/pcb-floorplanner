@@ -6,7 +6,7 @@ MD_FILES   := AGENTS.md README.md $(wildcard .opencode/skills/pcb-floorplanner/*
               $(wildcard .opencode/skills/pcb-floorplanner/references/*.md)
 VENV_PYTHON := $(shell command -v python3)
 
-.PHONY: help db-init db-verify db-status db-summary format lint test qa example-386
+.PHONY: help db-init db-verify db-status db-summary format lint test qa example-386 example-uno
 
 help:
 	@echo ""
@@ -21,6 +21,8 @@ help:
 	@echo "  lint           Check Python (ruff) and Markdown (markdownlint)"
 	@echo "  test           Run full test suite (unit + integration)"
 	@echo "  qa             Run format, lint, and test"
+	@echo "  example-386    Run the 386 mainboard example via opencode"
+	@echo "  example-uno    Run the Arduino Uno Rev3 example via opencode"
 	@echo ""
 
 # ── db-init ───────────────────────────────────────────────────────────────────
@@ -74,3 +76,8 @@ qa: format lint test
 example-386:
 	opencode run \
 		"Create a floorplan of a 386 mainboard which fits onto an A5 format box. If you have questions - assume the answer with a diy enthusiast mindset. Finally send the floorplan and the list of components and their task to me via telegram."
+
+# ── example-uno ───────────────────────────────────────────────────────────────
+example-uno:
+	opencode run \
+		"Create a floorplan of an Arduino Uno Rev3 board. The board is 68.6 x 53.4 mm. Key components: ATmega328P MCU, CH340G USB-serial bridge, 16 MHz crystal, 7805 5V regulator, USB-B connector, ICSP header, power barrel jack, and the standard digital/analog/power pin headers. If you have questions - assume the answer with a diy enthusiast mindset. Finally send the floorplan and the list of components and their task to me via telegram."

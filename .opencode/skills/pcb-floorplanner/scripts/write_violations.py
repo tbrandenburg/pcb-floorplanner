@@ -86,17 +86,45 @@ def write_violations(run_id, db_path=DEFAULT_DB):
                     (run_id, name_a, name_b, area),
                 )
 
+    # Detect and persist keep-out zone violations — component body overlaps a
+    # restricted zone.  Always hard: no component should sit inside a keep-out.
+    keep_out_rows = conn.execute(
+        """SELECT k.x_mm, k.y_mm, k.width_mm, k.height_mm, k.reason
+           FROM keep_out_zones k JOIN optimization_runs r ON r.version_id=k.version_id
+           WHERE r.id=?""",
+        (run_id,),
+    ).fetchall()
+
+    ko_violations = []
+    for p in placements.values():
+        px0, py0 = p["x"], p["y"]
+        px1, py1 = px0 + p["w"], py0 + p["h"]
+        for kx, ky, kw, kh, kreason in keep_out_rows:
+            kx1, ky1 = kx + kw, ky + kh
+            if px0 < kx1 and px1 > kx and py0 < ky1 and py1 > ky:
+                ovx = min(px1, kx1) - max(px0, kx)
+                ovy = min(py1, ky1) - max(py0, ky)
+                area = round(ovx * ovy, 4)
+                ko_violations.append((p["name"], kreason, area))
+                conn.execute(
+                    "INSERT INTO keep_out_violations"
+                    "(run_id, component_name, keep_out_reason, overlap_area_mm2)"
+                    " VALUES (?,?,?,?)",
+                    (run_id, p["name"], kreason, area),
+                )
+
     conn.execute(
         """INSERT INTO placement_score
            (run_id, final_penalty, violation_count, hard_violation_count,
-            overlap_violation_count, net_length_total)
-           VALUES (?,?,?,?,?,?)""",
+            overlap_violation_count, keep_out_violation_count, net_length_total)
+           VALUES (?,?,?,?,?,?,?)""",
         (
             run_id,
             round(result["total_penalty"], 4),
             len(result["violations"]),
             hard_count,
             len(overlap_pairs),
+            len(ko_violations),
             round(result["net_length_est"], 4),
         ),
     )
@@ -108,17 +136,10 @@ def write_violations(run_id, db_path=DEFAULT_DB):
         "violations": len(result["violations"]),
         "hard_violations": hard_count,
         "overlap_violations": len(overlap_pairs),
+        "keep_out_violations": len(ko_violations),
         "final_penalty": round(result["total_penalty"], 2),
         "net_length_mm": round(result["net_length_est"], 2),
     }
-
-
-if __name__ == "__main__":
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--run_id", type=int, required=True)
-    ap.add_argument("--db", default=str(DEFAULT_DB))
-    args = ap.parse_args()
-    print(json.dumps(write_violations(args.run_id, args.db)))
 
 
 if __name__ == "__main__":

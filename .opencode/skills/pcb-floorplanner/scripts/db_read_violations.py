@@ -4,8 +4,8 @@ Read violations for a run, joined with constraint reasons.
 Usage: python db_read_violations.py --run_id 1
 Prints: JSON list of violations with human-readable context for LLM review.
 
-Overlap violations (physical body overlaps) are always listed first and
-marked as hard=True — two components sharing space is never acceptable.
+Keep-out violations are listed first (always hard — components must not enter
+restricted zones), then physical body overlaps, then constraint violations.
 """
 
 import argparse, json, sys
@@ -23,15 +23,21 @@ def read_violations(run_id: int, db_path=DEFAULT_DB) -> dict:
 
     score = conn.execute(
         "SELECT final_penalty, violation_count, hard_violation_count, "
-        "COALESCE(overlap_violation_count, 0), net_length_total "
+        "COALESCE(overlap_violation_count, 0), COALESCE(keep_out_violation_count, 0), net_length_total "
         "FROM placement_score WHERE run_id=?",
         (run_id,),
     ).fetchone()
 
-    # Physical overlaps — always hard, listed first so LLM sees them immediately
+    # Keep-out violations — always hard, listed first
+    keep_outs = conn.execute(
+        "SELECT component_name, keep_out_reason, overlap_area_mm2 "
+        "FROM keep_out_violations WHERE run_id=? ORDER BY overlap_area_mm2 DESC",
+        (run_id,),
+    ).fetchall()
+
+    # Physical overlaps — always hard
     overlaps = conn.execute(
-        "SELECT comp_a, comp_b, overlap_area_mm2 FROM overlap_violations "
-        "WHERE run_id=? ORDER BY overlap_area_mm2 DESC",
+        "SELECT comp_a, comp_b, overlap_area_mm2 FROM overlap_violations WHERE run_id=? ORDER BY overlap_area_mm2 DESC",
         (run_id,),
     ).fetchall()
 
@@ -51,6 +57,19 @@ def read_violations(run_id: int, db_path=DEFAULT_DB) -> dict:
     ).fetchall()
 
     conn.close()
+
+    keep_out_list = [
+        {
+            "type": "KEEP_OUT",
+            "reason": f"{k[0]} overlaps keep-out zone: {k[1]} ({k[2]:.2f} mm²)",
+            "hard": True,
+            "weight": None,
+            "comp_a": k[0],
+            "comp_b": None,
+            "overlap_area_mm2": round(k[2], 2),
+        }
+        for k in keep_outs
+    ]
 
     overlap_list = [
         {
@@ -85,18 +104,11 @@ def read_violations(run_id: int, db_path=DEFAULT_DB) -> dict:
             "violation_count": score[1] if score else 0,
             "hard_violation_count": score[2] if score else 0,
             "overlap_violation_count": score[3] if score else 0,
-            "net_length_total_mm": score[4] if score else None,
+            "keep_out_violation_count": score[4] if score else 0,
+            "net_length_total_mm": score[5] if score else None,
         },
-        "violations": overlap_list + constraint_list,
+        "violations": keep_out_list + overlap_list + constraint_list,
     }
-
-
-if __name__ == "__main__":
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--run_id", type=int, required=True)
-    ap.add_argument("--db", default=str(DEFAULT_DB))
-    args = ap.parse_args()
-    print(json.dumps(read_violations(args.run_id, args.db), indent=2))
 
 
 if __name__ == "__main__":

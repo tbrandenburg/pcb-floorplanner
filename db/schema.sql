@@ -270,15 +270,27 @@ CREATE TABLE IF NOT EXISTS overlap_violations (
     created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
+-- Component body overlaps with keep-out zones (no FK to constraints —
+-- keep-out violations are a placement invariant derived from board geometry).
+CREATE TABLE IF NOT EXISTS keep_out_violations (
+    id               INTEGER PRIMARY KEY,
+    run_id           INTEGER NOT NULL REFERENCES optimization_runs(id),
+    component_name   TEXT    NOT NULL,
+    keep_out_reason  TEXT    NOT NULL,
+    overlap_area_mm2 REAL    NOT NULL,
+    created_at       TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
 CREATE TABLE IF NOT EXISTS placement_score (
-    id                      INTEGER PRIMARY KEY,
-    run_id                  INTEGER NOT NULL UNIQUE REFERENCES optimization_runs(id),
-    final_penalty           REAL    NOT NULL,
-    violation_count         INTEGER NOT NULL,
-    hard_violation_count    INTEGER NOT NULL,
-    overlap_violation_count INTEGER NOT NULL DEFAULT 0,
-    net_length_total        REAL    NOT NULL,
-    created_at              TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    id                          INTEGER PRIMARY KEY,
+    run_id                      INTEGER NOT NULL UNIQUE REFERENCES optimization_runs(id),
+    final_penalty               REAL    NOT NULL,
+    violation_count             INTEGER NOT NULL,
+    hard_violation_count        INTEGER NOT NULL,
+    overlap_violation_count     INTEGER NOT NULL DEFAULT 0,
+    keep_out_violation_count    INTEGER NOT NULL DEFAULT 0,
+    net_length_total            REAL    NOT NULL,
+    created_at                  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
 -- ─────────────────────────────────────────────
