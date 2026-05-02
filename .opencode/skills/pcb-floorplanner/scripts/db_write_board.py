@@ -67,9 +67,11 @@ def write_board(data: dict, db_path=DEFAULT_DB) -> dict:
                 f"will be blocked unless placer_greedy ignore_keep_outs=True is used. "
                 f"Consider using only corner keep-outs for mount holes."
             )
+        is_mc = 1 if z.get("is_mount_clearance", False) else 0
         conn.execute(
-            "INSERT INTO keep_out_zones(version_id, x_mm, y_mm, width_mm, height_mm, reason) VALUES (?,?,?,?,?,?)",
-            (vid, z["x_mm"], z["y_mm"], z["width_mm"], z["height_mm"], z["reason"]),
+            "INSERT INTO keep_out_zones(version_id, x_mm, y_mm, width_mm, height_mm, reason, is_mount_clearance)"
+            " VALUES (?,?,?,?,?,?,?)",
+            (vid, z["x_mm"], z["y_mm"], z["width_mm"], z["height_mm"], z["reason"], is_mc),
         )
 
     for h in data.get("mount_holes", []):

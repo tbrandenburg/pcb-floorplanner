@@ -34,9 +34,9 @@ def load_board(conn, run_id):
 
 
 def load_keep_outs(conn, run_id):
-    """Return list of (x, y, w, h) keep-out rectangles for the run's version."""
+    """Return list of (x, y, w, h, is_mount_clearance) keep-out rectangles for the run's version."""
     return conn.execute(
-        """SELECT k.x_mm, k.y_mm, k.width_mm, k.height_mm
+        """SELECT k.x_mm, k.y_mm, k.width_mm, k.height_mm, k.is_mount_clearance
            FROM keep_out_zones k JOIN optimization_runs r ON r.version_id=k.version_id
            WHERE r.id=?""",
         (run_id,),
@@ -106,7 +106,7 @@ def anneal(run_id, n_iter=5000, seed=42, db_path=DEFAULT_DB, overwrite=False):
     )
 
     board_dims = (W, H)
-    current_score = score(placements, constraints, nets, keep_outs, board=board_dims)
+    current_score = score(placements, constraints, nets, keep_outs, board=board_dims, fixed_ids=fixed_ids)
     best_score = current_score["total_penalty"]
     best_placements = copy.deepcopy(placements)
 
@@ -119,7 +119,7 @@ def anneal(run_id, n_iter=5000, seed=42, db_path=DEFAULT_DB, overwrite=False):
 
     for i in range(n_iter):
         new_placements, _ = propose_move(placements, fixed_ids, W, H, RES, rng)
-        new_s = score(new_placements, constraints, nets, keep_outs, board=board_dims)
+        new_s = score(new_placements, constraints, nets, keep_outs, board=board_dims, fixed_ids=fixed_ids)
         delta = new_s["total_penalty"] - current_score["total_penalty"]
 
         if delta < 0 or rng.random() < math.exp(-delta / max(T, 1e-9)):
@@ -192,8 +192,11 @@ if __name__ == "__main__":
     ap.add_argument("--run_id", type=int, required=True)
     ap.add_argument("--iterations", type=int, default=5000)
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--overwrite", action="store_true",
-                    help="Clear score_history/violations/placement_score before running (required for reruns)")
+    ap.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Clear score_history/violations/placement_score before running (required for reruns)",
+    )
     ap.add_argument("--db", default=str(DEFAULT_DB))
     args = ap.parse_args()
     print(json.dumps(anneal(args.run_id, args.iterations, args.seed, args.db, args.overwrite)))

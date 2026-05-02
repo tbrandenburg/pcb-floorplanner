@@ -6,7 +6,7 @@ MD_FILES   := AGENTS.md README.md $(wildcard .opencode/skills/pcb-floorplanner/*
               $(wildcard .opencode/skills/pcb-floorplanner/references/*.md)
 VENV_PYTHON := $(shell command -v python3)
 
-.PHONY: help db-init db-verify db-status db-summary format lint test qa example-386 example-uno
+.PHONY: help db-init db-verify db-status db-summary format lint test qa example-386 example-uno example-rpi4
 
 help:
 	@echo ""
@@ -23,6 +23,7 @@ help:
 	@echo "  qa             Run format, lint, and test"
 	@echo "  example-386    Run the 386 mainboard example via opencode"
 	@echo "  example-uno    Run the Arduino Uno Rev3 example via opencode"
+	@echo "  example-rpi4   Run the Raspberry Pi 4 Model B example via opencode"
 	@echo ""
 
 # ── db-init ───────────────────────────────────────────────────────────────────
@@ -81,3 +82,8 @@ example-386:
 example-uno:
 	opencode run \
 		"Create a floorplan of an Arduino Uno Rev3 board. The board is 68.6 x 53.4 mm. Key components: ATmega328P MCU, CH340G USB-serial bridge, 16 MHz crystal, 7805 5V regulator, USB-B connector, ICSP header, power barrel jack, and the standard digital/analog/power pin headers. If you have questions - assume the answer with a diy enthusiast mindset. Finally send the floorplan and the list of components and their task to me via telegram."
+
+# ── example-rpi4 ──────────────────────────────────────────────────────────────
+example-rpi4:
+	opencode run \
+		"Create a floorplan of a Raspberry Pi 4 Model B board. The board is 85 x 56 mm. Key components: BCM2711 SoC, 2x LPDDR4 SDRAM (2 GB config), VL805 USB 3.0 controller, BCM54213PE Gigabit Ethernet PHY, AP6256 WiFi/BT module, USB-C power input, 2x USB 3.0 ports, 2x USB 2.0 ports, RJ45 Ethernet, 2x micro-HDMI, 3.5mm AV jack, microSD slot, 40-pin GPIO header, PoE header, MIPI CSI camera, MIPI DSI display connectors. Use the official Raspberry Pi 4 Model B form factor with 4 mount holes. If you have questions - assume the answer with a diy enthusiast mindset. Finally send the floorplan and the list of components and their task to me via telegram."

@@ -69,7 +69,7 @@ def load_design(conn, version_id):
     ).fetchall()
 
     keep_outs = conn.execute(
-        "SELECT x_mm, y_mm, width_mm, height_mm FROM keep_out_zones WHERE version_id=?", (version_id,)
+        "SELECT x_mm, y_mm, width_mm, height_mm, is_mount_clearance FROM keep_out_zones WHERE version_id=?", (version_id,)
     ).fetchall()
 
     requirements = {}
@@ -183,7 +183,7 @@ def greedy_place(version_id, db_path=DEFAULT_DB):
 
     # Pre-mark keep-out cells
     occupied = {}
-    for kx, ky, kw, kh in keep_outs:
+    for kx, ky, kw, kh, *_ in keep_outs:  # 5-tuple (x,y,w,h,is_mount_clearance) or 4-tuple legacy
         for cx in range(int(kx / RES), math.ceil((kx + kw) / RES)):
             for cy in range(int(ky / RES), math.ceil((ky + kh) / RES)):
                 occupied[(cx, cy)] = -1  # -1 = keep-out

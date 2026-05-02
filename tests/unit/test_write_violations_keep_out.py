@@ -32,9 +32,7 @@ def _setup(db_path, comp_positions, keep_out_zones):
         "INSERT INTO design_sessions(prompt, model) VALUES (?,?)",
         ("test", "test"),
     ).lastrowid
-    vid = conn.execute(
-        "INSERT INTO design_versions(session_id) VALUES (?)", (sid,)
-    ).lastrowid
+    vid = conn.execute("INSERT INTO design_versions(session_id) VALUES (?)", (sid,)).lastrowid
 
     comp_ids = {}
     for name, x, y, w, h in comp_positions:
@@ -43,27 +41,23 @@ def _setup(db_path, comp_positions, keep_out_zones):
             (vid, name, "IC"),
         ).lastrowid
         conn.execute(
-            "INSERT INTO component_geometry(component_id, width_mm, height_mm, courtyard_margin)"
-            " VALUES (?,?,?,?)",
+            "INSERT INTO component_geometry(component_id, width_mm, height_mm, courtyard_margin) VALUES (?,?,?,?)",
             (cid, w, h, 0.0),
         )
         comp_ids[name] = (cid, x, y)
 
     conn.execute(
-        "INSERT INTO board_outline(version_id, width_mm, height_mm, grid_resolution)"
-        " VALUES (?,?,?,?)",
+        "INSERT INTO board_outline(version_id, width_mm, height_mm, grid_resolution) VALUES (?,?,?,?)",
         (vid, 100.0, 100.0, 1.0),
     )
     for kx, ky, kw, kh, reason in keep_out_zones:
         conn.execute(
-            "INSERT INTO keep_out_zones(version_id, x_mm, y_mm, width_mm, height_mm, reason)"
-            " VALUES (?,?,?,?,?,?)",
+            "INSERT INTO keep_out_zones(version_id, x_mm, y_mm, width_mm, height_mm, reason, is_mount_clearance)"
+            " VALUES (?,?,?,?,?,?,0)",
             (vid, kx, ky, kw, kh, reason),
         )
 
-    conn.execute(
-        "UPDATE design_versions SET status='LOCKED', hash='testhash' WHERE id=?", (vid,)
-    )
+    conn.execute("UPDATE design_versions SET status='LOCKED', hash='testhash' WHERE id=?", (vid,))
     rid = conn.execute(
         "INSERT INTO optimization_runs(version_id, algorithm) VALUES (?,?)",
         (vid, "test"),
@@ -107,8 +101,7 @@ def test_full_overlap_detected(tmp_path):
 
     conn = db_init.connect(db_file)
     row = conn.execute(
-        "SELECT component_name, keep_out_reason, overlap_area_mm2"
-        " FROM keep_out_violations WHERE run_id=?",
+        "SELECT component_name, keep_out_reason, overlap_area_mm2 FROM keep_out_violations WHERE run_id=?",
         (rid,),
     ).fetchone()
     assert row[0] == "U1"
@@ -128,9 +121,7 @@ def test_partial_overlap_detected(tmp_path):
     assert result["keep_out_violations"] == 1
 
     conn = db_init.connect(db_file)
-    row = conn.execute(
-        "SELECT overlap_area_mm2 FROM keep_out_violations WHERE run_id=?", (rid,)
-    ).fetchone()
+    row = conn.execute("SELECT overlap_area_mm2 FROM keep_out_violations WHERE run_id=?", (rid,)).fetchone()
     # overlap x: min(14,10) - max(8,0) = 2mm; overlap y: min(4,10) - max(0,0) = 4mm → 8mm²
     assert row[0] == pytest.approx(8.0)
 
@@ -141,7 +132,7 @@ def test_multiple_components_multiple_violations(tmp_path):
     rid = _setup(
         db_file,
         comp_positions=[
-            ("U1", 1.0, 1.0, 4.0, 4.0),   # inside zone A
+            ("U1", 1.0, 1.0, 4.0, 4.0),  # inside zone A
             ("U2", 50.0, 1.0, 4.0, 4.0),  # inside zone B
         ],
         keep_out_zones=[
@@ -164,9 +155,7 @@ def test_placement_score_count_persisted(tmp_path):
     write_violations(rid, db_file)
 
     conn = db_init.connect(db_file)
-    row = conn.execute(
-        "SELECT keep_out_violation_count FROM placement_score WHERE run_id=?", (rid,)
-    ).fetchone()
+    row = conn.execute("SELECT keep_out_violation_count FROM placement_score WHERE run_id=?", (rid,)).fetchone()
     assert row is not None
     assert row[0] == 1
 
@@ -181,3 +170,104 @@ def test_touching_boundary_not_a_violation(tmp_path):
     )
     result = write_violations(rid, db_file)
     assert result["keep_out_violations"] == 0
+
+
+def test_fixed_component_exempt_from_mount_clearance_keep_out(tmp_path):
+    """FIXED edge connectors overlapping is_mount_clearance=1 zones must NOT be violations.
+
+    Edge connectors are intentionally placed at board corners which overlap mount-hole
+    clearance zones.  SA cannot move FIXED components, so reporting them as violations
+    is misleading and irresolvable.
+    """
+    db_file = str(tmp_path / "test.db")
+    conn = db_init.init(db_file)
+
+    sid = conn.execute(
+        "INSERT INTO design_sessions(prompt, model) VALUES (?,?)", ("test", "test")
+    ).lastrowid
+    vid = conn.execute("INSERT INTO design_versions(session_id) VALUES (?)", (sid,)).lastrowid
+
+    cid = conn.execute(
+        "INSERT INTO components(version_id, name, type) VALUES (?,?,?)", (vid, "J1", "CONN")
+    ).lastrowid
+    conn.execute(
+        "INSERT INTO component_geometry(component_id, width_mm, height_mm, courtyard_margin)"
+        " VALUES (?,?,?,?)",
+        (cid, 4.0, 4.0, 0.0),
+    )
+    conn.execute(
+        "INSERT INTO board_outline(version_id, width_mm, height_mm, grid_resolution)"
+        " VALUES (?,?,?,?)",
+        (vid, 100.0, 100.0, 1.0),
+    )
+    # is_mount_clearance = 1 → FIXED connectors are exempt
+    conn.execute(
+        "INSERT INTO keep_out_zones(version_id, x_mm, y_mm, width_mm, height_mm, reason, is_mount_clearance)"
+        " VALUES (?,?,?,?,?,?,1)",
+        (vid, 0.0, 0.0, 10.0, 10.0, "mount hole clearance TL"),
+    )
+    conn.execute(
+        "UPDATE design_versions SET status='LOCKED', hash='testhash' WHERE id=?", (vid,)
+    )
+    rid = conn.execute(
+        "INSERT INTO optimization_runs(version_id, algorithm) VALUES (?,?)", (vid, "test")
+    ).lastrowid
+    conn.execute(
+        "INSERT INTO placements(run_id, component_id, x_mm, y_mm, status) VALUES (?,?,?,?,?)",
+        (rid, cid, 1.0, 1.0, "FIXED"),
+    )
+    conn.commit()
+    conn.close()
+
+    result = write_violations(rid, db_file)
+    assert result["keep_out_violations"] == 0, (
+        "FIXED components overlapping mount-clearance keep-outs must not be reported as violations"
+    )
+
+
+def test_fixed_component_violates_non_mount_keep_out(tmp_path):
+    """FIXED components overlapping a non-mount-clearance keep-out (e.g. RF zone) ARE violations."""
+    db_file = str(tmp_path / "test.db")
+    conn = db_init.init(db_file)
+
+    sid = conn.execute(
+        "INSERT INTO design_sessions(prompt, model) VALUES (?,?)", ("test", "test")
+    ).lastrowid
+    vid = conn.execute("INSERT INTO design_versions(session_id) VALUES (?)", (sid,)).lastrowid
+
+    cid = conn.execute(
+        "INSERT INTO components(version_id, name, type) VALUES (?,?,?)", (vid, "J1", "CONN")
+    ).lastrowid
+    conn.execute(
+        "INSERT INTO component_geometry(component_id, width_mm, height_mm, courtyard_margin)"
+        " VALUES (?,?,?,?)",
+        (cid, 4.0, 4.0, 0.0),
+    )
+    conn.execute(
+        "INSERT INTO board_outline(version_id, width_mm, height_mm, grid_resolution)"
+        " VALUES (?,?,?,?)",
+        (vid, 100.0, 100.0, 1.0),
+    )
+    # is_mount_clearance = 0 → FIXED connectors are NOT exempt
+    conn.execute(
+        "INSERT INTO keep_out_zones(version_id, x_mm, y_mm, width_mm, height_mm, reason, is_mount_clearance)"
+        " VALUES (?,?,?,?,?,?,0)",
+        (vid, 0.0, 0.0, 10.0, 10.0, "RF antenna no-go zone"),
+    )
+    conn.execute(
+        "UPDATE design_versions SET status='LOCKED', hash='testhash' WHERE id=?", (vid,)
+    )
+    rid = conn.execute(
+        "INSERT INTO optimization_runs(version_id, algorithm) VALUES (?,?)", (vid, "test")
+    ).lastrowid
+    conn.execute(
+        "INSERT INTO placements(run_id, component_id, x_mm, y_mm, status) VALUES (?,?,?,?,?)",
+        (rid, cid, 1.0, 1.0, "FIXED"),
+    )
+    conn.commit()
+    conn.close()
+
+    result = write_violations(rid, db_file)
+    assert result["keep_out_violations"] == 1, (
+        "FIXED components overlapping non-mount-clearance keep-outs must be reported as violations"
+    )

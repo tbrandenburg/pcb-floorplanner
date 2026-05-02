@@ -138,14 +138,15 @@ CREATE TABLE IF NOT EXISTS board_outline (
 );
 
 CREATE TABLE IF NOT EXISTS keep_out_zones (
-    id         INTEGER PRIMARY KEY,
-    version_id INTEGER NOT NULL REFERENCES design_versions(id),
-    x_mm       REAL    NOT NULL,
-    y_mm       REAL    NOT NULL,
-    width_mm   REAL    NOT NULL CHECK(width_mm > 0),
-    height_mm  REAL    NOT NULL CHECK(height_mm > 0),
-    reason     TEXT    NOT NULL,
-    created_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    id                 INTEGER PRIMARY KEY,
+    version_id         INTEGER NOT NULL REFERENCES design_versions(id),
+    x_mm               REAL    NOT NULL,
+    y_mm               REAL    NOT NULL,
+    width_mm           REAL    NOT NULL CHECK(width_mm > 0),
+    height_mm          REAL    NOT NULL CHECK(height_mm > 0),
+    reason             TEXT    NOT NULL,
+    is_mount_clearance INTEGER NOT NULL DEFAULT 0 CHECK(is_mount_clearance IN (0, 1)),
+    created_at         TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
 CREATE TABLE IF NOT EXISTS mount_holes (

@@ -77,6 +77,22 @@ def test_keep_out_penalty_multiple_components_summed():
     assert penalty == 500.0 * 4.0 + 500.0 * 4.0
 
 
+def test_fixed_exempt_from_mount_clearance_keep_out():
+    """FIXED component is exempt from is_mount_clearance=1 keep-out."""
+    p = {1: make_comp(1, 1, 4, 4)}
+    ko = [(0, 0, 10, 10, 1)]  # is_mount_clearance=1
+    penalty = keep_out_penalty(p, ko, fixed_ids={1})
+    assert penalty == 0.0, "FIXED component must be exempt from mount-clearance keep-out"
+
+
+def test_fixed_not_exempt_from_non_mount_keep_out():
+    """FIXED component is NOT exempt from is_mount_clearance=0 keep-out (e.g. RF zone)."""
+    p = {1: make_comp(1, 1, 4, 4)}
+    ko = [(0, 0, 10, 10, 0)]  # is_mount_clearance=0
+    penalty = keep_out_penalty(p, ko, fixed_ids={1})
+    assert penalty > 0.0, "FIXED component must NOT be exempt from RF/non-mount keep-out"
+
+
 # ── overlap_penalty ───────────────────────────────────────────────────────────
 
 

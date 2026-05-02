@@ -29,13 +29,28 @@ def write_violations(run_id, db_path=DEFAULT_DB):
     board_dims = (board[0], board[1]) if board else None
 
     keep_outs = conn.execute(
-        """SELECT k.x_mm, k.y_mm, k.width_mm, k.height_mm
+        """SELECT k.x_mm, k.y_mm, k.width_mm, k.height_mm, k.is_mount_clearance
            FROM keep_out_zones k JOIN optimization_runs r ON r.version_id=k.version_id
            WHERE r.id=?""",
         (run_id,),
     ).fetchall()
 
-    result = score(placements, constraints, nets, keep_outs=keep_outs or None, board=board_dims)
+    # FIXED components (edge connectors) are exempt only from mount-clearance keep-outs —
+    # they may legally overlap corner screw zones. They must NOT overlap RF/antenna keep-outs.
+    fixed_ids = set(
+        row[0]
+        for row in conn.execute(
+            "SELECT component_id FROM placements WHERE run_id=? AND status='FIXED'",
+            (run_id,),
+        ).fetchall()
+    )
+
+    result = score(
+        placements, constraints, nets,
+        keep_outs=keep_outs or None,
+        board=board_dims,
+        fixed_ids=fixed_ids,
+    )
 
     # build constraint metadata for hard flag lookup
     con_meta = {
@@ -86,10 +101,20 @@ def write_violations(run_id, db_path=DEFAULT_DB):
                     (run_id, name_a, name_b, area),
                 )
 
-    # Detect and persist keep-out zone violations — component body overlaps a
-    # restricted zone.  Always hard: no component should sit inside a keep-out.
+    # Detect and persist keep-out zone violations — non-FIXED component body
+    # overlaps a restricted zone.  FIXED components (edge connectors) are
+    # intentionally allowed in corner/edge keep-outs and are exempt.
+    fixed_names = set(
+        row[0]
+        for row in conn.execute(
+            """SELECT c.name FROM placements p JOIN components c ON c.id=p.component_id
+               WHERE p.run_id=? AND p.status='FIXED'""",
+            (run_id,),
+        ).fetchall()
+    )
+
     keep_out_rows = conn.execute(
-        """SELECT k.x_mm, k.y_mm, k.width_mm, k.height_mm, k.reason
+        """SELECT k.x_mm, k.y_mm, k.width_mm, k.height_mm, k.reason, k.is_mount_clearance
            FROM keep_out_zones k JOIN optimization_runs r ON r.version_id=k.version_id
            WHERE r.id=?""",
         (run_id,),
@@ -97,9 +122,14 @@ def write_violations(run_id, db_path=DEFAULT_DB):
 
     ko_violations = []
     for p in placements.values():
+        is_fixed = p["name"] in fixed_names
         px0, py0 = p["x"], p["y"]
         px1, py1 = px0 + p["w"], py0 + p["h"]
-        for kx, ky, kw, kh, kreason in keep_out_rows:
+        for kx, ky, kw, kh, kreason, is_mount_clearance in keep_out_rows:
+            # FIXED edge connectors may legally overlap mount-hole clearance zones;
+            # all other keep-outs (RF, antenna, etc.) apply to every component.
+            if is_fixed and is_mount_clearance:
+                continue
             kx1, ky1 = kx + kw, ky + kh
             if px0 < kx1 and px1 > kx and py0 < ky1 and py1 > ky:
                 ovx = min(px1, kx1) - max(px0, kx)

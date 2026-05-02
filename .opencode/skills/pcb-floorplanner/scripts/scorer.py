@@ -62,13 +62,27 @@ def dist(p1, p2):
     return math.hypot(ax - bx, ay - by)
 
 
-def keep_out_penalty(placements, keep_outs):
-    """Penalise components whose body overlaps any keep-out zone."""
+def keep_out_penalty(placements, keep_outs, fixed_ids=None):
+    """Penalise components whose body overlaps any keep-out zone.
+
+    FIXED components (edge connectors) are exempt from mount-clearance keep-outs
+    (is_mount_clearance=True) because they are intentionally placed at board edges
+    that may overlap corner screw zones. They are NOT exempt from other keep-outs
+    (e.g. RF antenna areas).
+
+    keep_outs entries: (x, y, w, h) or (x, y, w, h, is_mount_clearance).
+    The 5th element is optional for backwards compatibility (defaults to False).
+    """
     penalty = 0.0
-    for p in placements.values():
+    for comp_id, p in placements.items():
+        is_fixed = fixed_ids and comp_id in fixed_ids
         px0, py0 = p["x"], p["y"]
         px1, py1 = px0 + p["w"], py0 + p["h"]
-        for kx, ky, kw, kh in keep_outs:
+        for ko in keep_outs:
+            kx, ky, kw, kh = ko[:4]
+            is_mount_clearance = bool(ko[4]) if len(ko) > 4 else False
+            if is_fixed and is_mount_clearance:
+                continue  # FIXED connectors may legally overlap mount-hole corners
             kx1, ky1 = kx + kw, ky + kh
             if px0 < kx1 and px1 > kx and py0 < ky1 and py1 > ky:
                 ovx = min(px1, kx1) - max(px0, kx)
@@ -77,9 +91,10 @@ def keep_out_penalty(placements, keep_outs):
     return penalty
 
 
-def score(placements, constraints, nets, keep_outs=None, board=None):
+def score(placements, constraints, nets, keep_outs=None, board=None, fixed_ids=None):
     """
     board: optional (width_mm, height_mm) tuple — required for FIXED edge penalty.
+    fixed_ids: optional set of component IDs that are FIXED (exempt from keep-out penalty).
     Coordinate system: y=0 is top edge, y=H is bottom edge (screen coords).
 
     Constraint tuple format: (id, type, a_id, b_id, min_d, max_d, weight, hard[, edge])
@@ -186,7 +201,7 @@ def score(placements, constraints, nets, keep_outs=None, board=None):
 
     total = constraint_penalty + overlap_penalty + net_length_est
     if keep_outs:
-        ko_pen = keep_out_penalty(placements, keep_outs)
+        ko_pen = keep_out_penalty(placements, keep_outs, fixed_ids=fixed_ids)
         total += ko_pen
     else:
         ko_pen = 0.0
