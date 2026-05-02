@@ -80,9 +80,9 @@ _EDGE_LENGTH_DIM = {
 # the region where the perpendicular edge connector also sits.
 _CORNERS = [
     # (corner_name, h_edge, v_edge, corner_x, corner_y)
-    ("top-left",     "top",    "left",  0.0, 0.0),
-    ("top-right",    "top",    "right", None, 0.0),   # x = board_width
-    ("bottom-left",  "bottom", "left",  0.0, None),   # y = board_height
+    ("top-left", "top", "left", 0.0, 0.0),
+    ("top-right", "top", "right", None, 0.0),  # x = board_width
+    ("bottom-left", "bottom", "left", 0.0, None),  # y = board_height
     ("bottom-right", "bottom", "right", None, None),
 ]
 
@@ -98,7 +98,6 @@ def check_edge_budget(version_id: int, db_path=DEFAULT_DB) -> dict:
     if row is None:
         raise ValueError(f"No board_outline found for version_id={version_id}. Run db_write_board.py first.")
     board_w, board_h = row
-    board_dims = {"width_mm": board_w, "height_mm": board_h}
 
     # --- keep-out zones: compute how much each edge loses -------------------
     keep_outs = conn.execute(
@@ -110,20 +109,20 @@ def check_edge_budget(version_id: int, db_path=DEFAULT_DB) -> dict:
     # (conservative: any keep-out that abuts the edge reduces usable space)
     edge_blocked = {"top": 0.0, "bottom": 0.0, "left": 0.0, "right": 0.0}
     for kx, ky, kw, kh in keep_outs:
-        if ky == 0:                          # touches top edge
+        if ky == 0:  # touches top edge
             edge_blocked["top"] += kw
-        if ky + kh >= board_h:               # touches bottom edge
+        if ky + kh >= board_h:  # touches bottom edge
             edge_blocked["bottom"] += kw
-        if kx == 0:                          # touches left edge
+        if kx == 0:  # touches left edge
             edge_blocked["left"] += kh
-        if kx + kw >= board_w:               # touches right edge
+        if kx + kw >= board_w:  # touches right edge
             edge_blocked["right"] += kh
 
     usable = {
-        "top":    board_w - edge_blocked["top"],
+        "top": board_w - edge_blocked["top"],
         "bottom": board_w - edge_blocked["bottom"],
-        "left":   board_h - edge_blocked["left"],
-        "right":  board_h - edge_blocked["right"],
+        "left": board_h - edge_blocked["left"],
+        "right": board_h - edge_blocked["right"],
     }
 
     # --- components with edge requirements + geometry -----------------------
@@ -156,11 +155,8 @@ def check_edge_budget(version_id: int, db_path=DEFAULT_DB) -> dict:
     errors: list[str] = []
 
     for edge, comps in by_edge.items():
-        axis_dim = _EDGE_AXIS[edge]          # "width_mm" or "height_mm"
-        committed = sum(
-            c[axis_dim] + 2 * c["courtyard_margin"]
-            for c in comps
-        )
+        axis_dim = _EDGE_AXIS[edge]  # "width_mm" or "height_mm"
+        committed = sum(c[axis_dim] + 2 * c["courtyard_margin"] for c in comps)
         ok = committed <= usable[edge]
         edges_out[edge] = {
             "usable_mm": round(usable[edge], 3),
@@ -220,10 +216,10 @@ def check_edge_budget(version_id: int, db_path=DEFAULT_DB) -> dict:
                 # connector laid along X axis; it claims the corner when its body is
                 # wider than the keep-out zone that guards that corner side.
                 if corner_x == 0:
-                    if body_w > ckw:   # body extends past the keep-out width from x=0
+                    if body_w > ckw:  # body extends past the keep-out width from x=0
                         h_claimants.append(c["name"])
                 else:
-                    if body_w > ckw:   # body extends past the keep-out width from x=board_w
+                    if body_w > ckw:  # body extends past the keep-out width from x=board_w
                         h_claimants.append(c["name"])
 
         # Check each vertical-edge connector: does its body extend into the corner zone?
@@ -232,10 +228,10 @@ def check_edge_budget(version_id: int, db_path=DEFAULT_DB) -> dict:
             body_h = c["height_mm"] + 2 * c["courtyard_margin"]
             if v_edge in ("left", "right"):
                 if corner_y == 0:
-                    if body_h > ckh:   # body extends past the keep-out height from y=0
+                    if body_h > ckh:  # body extends past the keep-out height from y=0
                         v_claimants.append(c["name"])
                 else:
-                    if body_h > ckh:   # body extends past the keep-out height from y=board_h
+                    if body_h > ckh:  # body extends past the keep-out height from y=board_h
                         v_claimants.append(c["name"])
 
         for hc in h_claimants:
@@ -274,9 +270,7 @@ def check_edge_budget(version_id: int, db_path=DEFAULT_DB) -> dict:
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(
-        description="Check edge-connector budget after board and geometry are written."
-    )
+    ap = argparse.ArgumentParser(description="Check edge-connector budget after board and geometry are written.")
     ap.add_argument("--version_id", type=int, required=True)
     ap.add_argument("--db", default=str(DEFAULT_DB))
     args = ap.parse_args()
