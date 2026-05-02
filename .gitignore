@@ -7,3 +7,5 @@ floorplan_check.png
 pcb_cairo.py
 pcb_matplotlib.py
 pcb_shapely.py
+output/
+db/floorplan.db

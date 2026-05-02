@@ -47,7 +47,10 @@ def test_valid_board_writes_successfully(tmp_path):
             "board": BOARD,
             "keep_out_zones": [
                 {
-                    "x_mm": 0, "y_mm": 0, "width_mm": 7, "height_mm": 7,
+                    "x_mm": 0,
+                    "y_mm": 0,
+                    "width_mm": 7,
+                    "height_mm": 7,
                     "reason": "corner clearance TL",
                     "is_mount_clearance": True,
                 }
@@ -129,7 +132,10 @@ def test_mount_hole_inside_own_keep_out_does_not_raise(tmp_path):
             "board": BOARD,
             "keep_out_zones": [
                 {
-                    "x_mm": 0, "y_mm": 0, "width_mm": 7, "height_mm": 7,
+                    "x_mm": 0,
+                    "y_mm": 0,
+                    "width_mm": 7,
+                    "height_mm": 7,
                     "reason": "corner clearance TL",
                     "is_mount_clearance": True,
                 },

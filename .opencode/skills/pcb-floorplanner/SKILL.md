@@ -20,15 +20,22 @@ No data is passed between steps as arguments — the DB is the contract.
 
 ## Prerequisites
 
-The virtualenv (shapely, cairocffi, matplotlib) must be active before running any
-Python step. Activate it from the repo root:
+The project virtualenv lives at `.venv/` relative to the repo root (i.e. relative to `pwd`).
+**Always invoke Python scripts with `.venv/bin/python`** — never bare `python` or `python3`,
+because the shell `PATH` may resolve to a different interpreter that lacks the required packages
+(cairocffi, shapely, numpy, etc.).
 
 ```bash
-source .venv/bin/activate
+# Correct — always use the project venv explicitly
+.venv/bin/python scripts/db_write_session.py ...
+
+# Wrong — PATH may resolve to a different venv or system Python
+.venv/bin/python scripts/db_write_session.py ...
+.venv/bin/python scripts/db_write_session.py ...
 ```
 
 The database is created automatically on first use — no manual `db_init` call needed.
-`python db/db_init.py --force` (or `make db-init FORCE=1`) is available as an
+`.venv/bin/python db/db_init.py --force` (or `make db-init FORCE=1`) is available as an
 administrative reset if you need to wipe the DB and start a new design from scratch.
 
 ## Workflow overview
@@ -61,7 +68,7 @@ For each Python step:
 | 0.25 | Mechanical Architecture | LLM | `db_write_arch.py` (category: OTHER + notes) |
 | 0.5 | Hardware Architecture | LLM | `db_write_arch.py` |
 | 1 | Design Capture — BOM + Netlist | LLM | `db_write_bom.py` |
-| 2 | Board Definition | LLM + Python | `db_write_board.py` |
+| 2 | Board Definition | LLM + Python | `db_write_board.py` + `db_check_edge_budget.py` |
 | 3 | Component Geometry Resolution | LLM + Python | `db_write_geometry.py` |
 | 4 | Constraint Derivation | LLM | `db_write_constraints.py` |
 | 5 | Design Lock | Python | `db_lock_version.py` |
@@ -79,13 +86,13 @@ All print a JSON result to stdout. Non-zero exit = failure with error on stderr.
 
 ```bash
 # Example: Step 0
-python scripts/db_write_session.py \
+.venv/bin/python scripts/db_write_session.py \
   --prompt "Create a floorplan for a Raspberry Pi clone" \
   --model "claude-sonnet-4-5"
 # → {"session_id": 1, "version_id": 1}
 
 # Example: Step 5
-python scripts/db_lock_version.py --version_id 1
+.venv/bin/python scripts/db_lock_version.py --version_id 1
 # → {"status": "LOCKED", "hash": "3fa2c1...", "components": 12, "constraints": 18}
 # exit 1 if geometry missing or no constraints defined
 ```
@@ -99,7 +106,7 @@ schema.md table definitions.
 ### `db_write_session.py` (Step 0)
 
 ```bash
-python scripts/db_write_session.py \
+.venv/bin/python scripts/db_write_session.py \
   --prompt "Free text design intent" \
   --model "claude-sonnet-4-5"
 # → {"session_id": N, "version_id": N}
@@ -234,13 +241,34 @@ Valid constraint types: `NEAR`, `FAR`, `FIXED`, `ALIGN`
 drive connectors to the board edge. With `hard=0` the penalty is only `weight × dist_from_edge`
 which is too weak and connectors will drift inward.
 
+### `db_check_edge_budget.py` (Step 2 gate)
+
+```bash
+.venv/bin/python scripts/db_check_edge_budget.py --version_id 1
+# → {
+#     "version_id": 1,
+#     "board_mm": "85.0x56.0",
+#     "edges": {
+#       "top":    {"usable_mm": 71.0, "committed_mm": 52.0, "components": ["J8"], "ok": true},
+#       "left":   {"usable_mm": 42.0, "committed_mm": 31.0, "components": ["J1","J2","J3","J4"], "ok": true},
+#       ...
+#     },
+#     "corner_conflicts": [],
+#     "feasible": true
+#   }
+# exit 1 + errors[] if feasible=false
+```
+
+Requires geometry to be written first (`db_write_geometry.py`). Components with an `edge`
+requirement but no geometry are reported as errors.
+
 ### `optimizer_annealing.py` (Step 7)
 
 ```bash
-python scripts/optimizer_annealing.py --run_id 1 [--iterations 5000] [--seed 42]
+.venv/bin/python scripts/optimizer_annealing.py --run_id 1 [--iterations 5000] [--seed 42]
 
 # Re-running on the same run_id (e.g. more iterations, different seed):
-python scripts/optimizer_annealing.py --run_id 1 --iterations 20000 --seed 99 --overwrite
+.venv/bin/python scripts/optimizer_annealing.py --run_id 1 --iterations 20000 --seed 99 --overwrite
 ```
 
 **`--overwrite` flag:** required when re-running SA on an existing `run_id`. Clears
@@ -250,14 +278,14 @@ INSERT into `score_history` hits a UNIQUE constraint and the script aborts.
 ### `write_violations.py` (Step 8)
 
 ```bash
-python scripts/write_violations.py --run_id 1
+.venv/bin/python scripts/write_violations.py --run_id 1
 # → {"violations": N, "hard_violations": N, "final_penalty": F, "net_length_mm": F}
 ```
 
 ### `db_write_review.py` (Step 10)
 
 ```bash
-python scripts/db_write_review.py \
+.venv/bin/python scripts/db_write_review.py \
   --run_id 1 \
   --action APPROVE \
   --note "VISUAL: all connectors at edge. SCORES: 5 soft violations, 0 hard. DECISION: APPROVE."
@@ -442,6 +470,31 @@ each MECH-N rule as a non-negotiable requirement, not a suggestion. In particula
   board dimensions, mounting hole positions, and edge-connector locations. Do not invent
   dimensions for established form factors.
 
+**After writing board and geometry, run the edge-budget check (mandatory gate):**
+
+```bash
+.venv/bin/python scripts/db_check_edge_budget.py --version_id <id>
+# → JSON with per-edge budget + corner conflicts
+# exit 1 if feasible=false — DO NOT proceed to Step 3 until this passes
+```
+
+This check verifies two things deterministically before any placement runs:
+
+1. **Edge budget:** for each edge, the sum of all connector body sizes + courtyard margins
+   does not exceed the usable edge length (board dimension minus keep-out zones on that edge).
+2. **Corner conflicts:** no two connectors on perpendicular edges both claim the same corner
+   keep-out zone simultaneously (e.g. a wide GPIO header on the top edge and a tall connector
+   on the left edge both reaching into the top-left corner).
+
+**If `feasible=false`:** fix the design at Step 1 or Step 2 — do NOT proceed to Step 3.
+Common remedies:
+- Edge overcommitted → remove a connector, reduce its geometry, or widen the board
+- Corner conflict → move one connector to a different edge, or shorten the body that claims the corner
+
+This gate exists because violations caused by edge-budget failures **cannot be fixed by
+placement or SA optimisation** — they are geometric infeasibilities that must be resolved
+in the design data before locking.
+
 **Keep-out zone anti-pattern — do NOT define keep-outs for edge connector zones:**
 
 Keep-out zones block ALL components including FIXED edge connectors. If you define a
@@ -524,9 +577,9 @@ keep-out for "bottom edge connector zone", the placer will refuse to place conne
 Run both render scripts and confirm output files exist and are non-zero bytes:
 
 ```bash
-python scripts/render_png.py --run_id <id>
+.venv/bin/python scripts/render_png.py --run_id <id>
 # → {"floorplan": "output/floorplan.png", "heatmap": "output/heatmap.png"}
-python scripts/render_report.py --run_id <id>
+.venv/bin/python scripts/render_report.py --run_id <id>
 # → {"report": "output/report.html"}
 ls -lh output/floorplan.png output/heatmap.png
 ```
@@ -626,7 +679,7 @@ Format: `"VISUAL: <pass/fail summary>. SCORES: <violation summary>. DECISION: <a
 Read violations via:
 
 ```bash
-python scripts/db_read_violations.py --run_id <id>
+.venv/bin/python scripts/db_read_violations.py --run_id <id>
 ```
 
 Categorise:
@@ -644,11 +697,11 @@ Never unlock a LOCKED version. Instead:
 
 ```bash
 # Create new version
-python scripts/db_write_session.py --prompt "<same prompt>" --model "<model>"
+.venv/bin/python scripts/db_write_session.py --prompt "<same prompt>" --model "<model>"
 # Copy components/geometry/board from old version_id to new version_id
 # (use db_copy_version.py if available, else manual INSERT SELECT)
 # Adjust constraints, then lock again
-python scripts/db_lock_version.py --version_id <new_id>
+.venv/bin/python scripts/db_lock_version.py --version_id <new_id>
 ```
 
 ## EE review — feedback entrypoints
@@ -719,9 +772,9 @@ EE says: "The placement looks locally stuck — try again."
 2. Re-run SA with `--overwrite` and a different seed to clear old score history:
 
 ```bash
-python scripts/optimizer_annealing.py --run_id <id> --seed 99 --overwrite
-python scripts/write_violations.py --run_id <id>
-python scripts/render_png.py --run_id <id>
+.venv/bin/python scripts/optimizer_annealing.py --run_id <id> --seed 99 --overwrite
+.venv/bin/python scripts/write_violations.py --run_id <id>
+.venv/bin/python scripts/render_png.py --run_id <id>
 ```
 
 1. Re-enter at Step 9.5 (visual inspection).
