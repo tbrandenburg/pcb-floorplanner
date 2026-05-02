@@ -11,7 +11,6 @@ Covers:
 """
 
 import sys
-import pytest
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent.parent
@@ -19,6 +18,7 @@ sys.path.insert(0, str(_ROOT / "db"))
 sys.path.insert(0, str(_ROOT / ".opencode" / "skills" / "pcb-floorplanner" / "scripts"))
 
 from db_validate_placements import validate, _rect_circle_overlap, _rect_rect_overlap
+
 sys.path.insert(0, str(_ROOT / "tests"))
 from conftest import make_db, seed_session, seed_component, seed_geometry, lock_version
 
@@ -38,6 +38,7 @@ def test_rect_circle_overlap_corner():
 def test_rect_circle_overlap_corner_touch():
     # circle just reaches the corner
     import math
+
     assert _rect_circle_overlap(0, 0, 10, 10, 11, 11, math.sqrt(2) + 0.01) is True
 
 
@@ -57,8 +58,21 @@ def test_rect_rect_overlap_touching_edge():
 # ── helpers to build a minimal run in an in-memory DB ─────────────────────────
 
 
-def _make_run(conn, x1, y1, x2=None, y2=None, w1=10, h1=10, w2=6, h2=6,
-              mount_holes=None, keep_outs=None, status1="PLACED", status2="PLACED"):
+def _make_run(
+    conn,
+    x1,
+    y1,
+    x2=None,
+    y2=None,
+    w1=10,
+    h1=10,
+    w2=6,
+    h2=6,
+    mount_holes=None,
+    keep_outs=None,
+    status1="PLACED",
+    status2="PLACED",
+):
     """Seed a full run with 1 or 2 components.  Returns (conn, run_id)."""
     _, vid = seed_session(conn)
     cid1 = seed_component(conn, vid, "U1", "SoC")
@@ -91,9 +105,7 @@ def _make_run(conn, x1, y1, x2=None, y2=None, w1=10, h1=10, w2=6, h2=6,
             )
 
     lock_version(conn, vid)
-    rid = conn.execute(
-        "INSERT INTO optimization_runs(version_id, algorithm) VALUES (?,?)", (vid, "test")
-    ).lastrowid
+    rid = conn.execute("INSERT INTO optimization_runs(version_id, algorithm) VALUES (?,?)", (vid, "test")).lastrowid
 
     conn.execute(
         "INSERT INTO placements(run_id, component_id, x_mm, y_mm, rotation, status) VALUES (?,?,?,?,?,?)",
@@ -140,8 +152,7 @@ def test_mount_hole_no_overlap():
 
 def test_keep_out_overlap_detected():
     conn = make_db()
-    _, rid = _make_run(conn, x1=5, y1=5,
-                       keep_outs=[(0, 0, 8, 8, "RF zone", 0)])
+    _, rid = _make_run(conn, x1=5, y1=5, keep_outs=[(0, 0, 8, 8, "RF zone", 0)])
     result = validate(run_id=rid, db_path=conn)
     assert result["ok"] is False
     assert any("KEEP_OUT" in v for v in result["violations"])
@@ -149,8 +160,7 @@ def test_keep_out_overlap_detected():
 
 def test_keep_out_no_overlap():
     conn = make_db()
-    _, rid = _make_run(conn, x1=30, y1=30,
-                       keep_outs=[(0, 0, 5, 5, "RF zone", 0)])
+    _, rid = _make_run(conn, x1=30, y1=30, keep_outs=[(0, 0, 5, 5, "RF zone", 0)])
     result = validate(run_id=rid, db_path=conn)
     assert result["ok"] is True
 
@@ -158,16 +168,14 @@ def test_keep_out_no_overlap():
 def test_fixed_exempt_from_mount_clearance():
     conn = make_db()
     # FIXED component placed inside a mount-clearance keep-out — should be exempt
-    _, rid = _make_run(conn, x1=0, y1=0, status1="FIXED",
-                       keep_outs=[(0, 0, 8, 8, "mount hole TL clearance", 1)])
+    _, rid = _make_run(conn, x1=0, y1=0, status1="FIXED", keep_outs=[(0, 0, 8, 8, "mount hole TL clearance", 1)])
     result = validate(run_id=rid, db_path=conn)
     assert result["ok"] is True
 
 
 def test_fixed_not_exempt_from_rf_keep_out():
     conn = make_db()
-    _, rid = _make_run(conn, x1=0, y1=0, status1="FIXED",
-                       keep_outs=[(0, 0, 8, 8, "RF antenna zone", 0)])
+    _, rid = _make_run(conn, x1=0, y1=0, status1="FIXED", keep_outs=[(0, 0, 8, 8, "RF antenna zone", 0)])
     result = validate(run_id=rid, db_path=conn)
     assert result["ok"] is False
     assert any("KEEP_OUT" in v for v in result["violations"])
@@ -193,8 +201,7 @@ def test_component_no_overlap():
 def test_multiple_violations_all_reported():
     conn = make_db()
     # mount hole + component overlap simultaneously
-    _, rid = _make_run(conn, x1=0, y1=0, x2=5, y2=5,
-                       mount_holes=[(2, 2, 3)])
+    _, rid = _make_run(conn, x1=0, y1=0, x2=5, y2=5, mount_holes=[(2, 2, 3)])
     result = validate(run_id=rid, db_path=conn)
     assert result["ok"] is False
     types = {v.split(":")[0] for v in result["violations"]}
