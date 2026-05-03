@@ -570,46 +570,7 @@ Terminate when T < T_min or max_iterations reached.
 
 ---
 
-## Step 9 — LLM Review + Decision
-
-**Engine:** LLM
-
-**Goal:** Interpret the violation report with PCB engineering judgment. Either approve the floorplan or modify constraints and trigger a new optimisation cycle.
-
-**Inputs:**
-
-- `violations` JOIN `constraints` — human-readable violation list with reasons
-- `score_history` — convergence curve (did the optimizer converge or plateau?)
-- `placement_score` — summary metrics
-
-**Processing:**
-
-1. Categorise violations by severity:
-   - Hard violations with large delta → must fix (e.g. FIXED connector not at board edge)
-   - Soft violations with small delta → acceptable tradeoff (e.g. decoupling cap 2.1 mm instead of 2.0 mm)
-2. Diagnose root cause: Is it a constraint weight issue? A board area problem? Conflicting constraints?
-3. Choose action:
-   - **APPROVE** — acceptable placement, proceed to render
-   - **MODIFY** — adjust constraint weights or distances, create new `design_version`, re-run Steps 5–8
-   - **RERUN** — same constraints, re-run optimizer from Step 6 (different random seed may escape local minimum)
-
-**Outputs (DB writes):**
-
-- `review_notes(run_id, note, action)`
-- `constraints` — updated weight/dist values if action=MODIFY
-- `design_versions(status=DRAFT)` — new version row if action=MODIFY
-
-**Helper scripts:**
-
-- `db_read_violations.py`
-- `db_read_score_history.py`
-- `db_write_review.py`
-- `db_write_constraints.py` — only if action=MODIFY
-- `db_new_version.py` — only if action=MODIFY
-
----
-
-## Step 10 — Render + Export
+## Step 9 — Render + Export
 
 **Engine:** Python only
 
@@ -647,3 +608,141 @@ Terminate when T < T_min or max_iterations reached.
 - `render_heatmap.py`
 - `render_report.py`
 - `db_write_artifacts.py`
+
+---
+
+## Step 9.5 — Adversarial Visual Inspection
+
+**Engine:** LLM (image analysis)
+
+**This step is mandatory. It must run immediately after Step 9. Never skip it. Never approve from scores alone.**
+
+**Goal:** Visually verify the rendered PNG catches placement errors that the numeric scorer
+cannot detect — connectors on wrong edges, components overlapping drill holes, keep-out
+violations silently exempted by tolerance bugs, connector drift away from board edge.
+
+**Inputs:**
+
+- `output/floorplan_run_XXXX.png` — rendered floorplan from Step 9
+- `output/heatmap_run_XXXX.png` — occupancy heatmap from Step 9
+- `placement_score` + `violations` from Step 8 — for cross-check
+
+**Image orientation and colour legend:**
+
+| What you see | Meaning |
+|---|---|
+| Dark green fill | PCB substrate (board area) |
+| Bright green border | Board outline |
+| Semi-transparent red rectangle | Keep-out zone — no component body allowed here |
+| Gold ring + dark hole | Mount hole (copper annular ring + drill) |
+| Coloured filled rectangle | Component body |
+| Dashed grey outline | Courtyard / exclusion zone |
+| Red/pink component outline | Component has a constraint violation |
+| White text | Component name label |
+
+**Processing — adversarial checklist (every item must be explicitly verified):**
+
+Assume the placement is broken until each item is confirmed. Do not stop at the first failure — collect all findings.
+
+1. **EDGE PLACEMENT**
+   - [ ] Every FIXED connector is touching or within 2 mm of its required board edge
+   - [ ] No connector is floating in the middle of the board
+   - [ ] Connectors are on the correct edge as specified in constraints
+
+2. **KEEP-OUT AND DRILL HOLE CLEARANCE**
+   - [ ] No component body overlaps a red keep-out zone (mount-hole clearance, RF zone)
+   - [ ] No component body overlaps a mount hole drill location (gold ring + dark hole)
+   - [ ] Mount hole copper rings are visible at all four corners, unobstructed
+
+3. **COMPONENT CLUSTERING**
+   - [ ] Decoupling caps are visually adjacent to their IC (≤2 mm, not isolated in a corner)
+   - [ ] Crystal is close to its MCU/PHY, not isolated
+   - [ ] PMIC / power components are near their load IC
+
+4. **OVERLAP AND SPACING**
+   - [ ] No two component bodies visually overlap each other
+   - [ ] No component is placed outside the green PCB area
+
+5. **CROSS-CHECK AGAINST VIOLATION DATA**
+   - [ ] Every FIXED connector in the violations list: confirm it is actually at a board edge — if not, flag MODIFY
+   - [ ] Every NEAR violation with `delta_mm > 10`: confirm both components are at least in the same board half
+   - [ ] `keep_out_violations == 0` in scores: visually confirm no component is inside a red zone — the scorer exemption logic may have silently suppressed a real violation (known failure mode)
+
+**Decision rules:**
+
+| Visual finding | Decision |
+|---|---|
+| Any connector not at its required edge | MODIFY |
+| Any component body on a mount hole | MODIFY — hard error, drill destroys component |
+| Any component outside board boundary | MODIFY |
+| Any two components visually overlapping | MODIFY |
+| `keep_out_violations == 0` but red zone visually occupied | MODIFY — scorer exemption bug, treat as hard error |
+| All items pass, minor soft-violation clustering | APPROVE with note |
+
+**Outputs (DB writes):**
+
+- Visual findings recorded verbatim in the `--note` of `db_write_review.py` in the next step
+- Format: `"VISUAL: <checklist summary, each PASS/FAIL item>. SCORES: <violation summary>. DECISION: <action>."`
+
+---
+
+## Step 10 — LLM Review + Decision
+
+**Engine:** LLM
+
+**Goal:** Interpret the violation report and the Step 9.5 visual findings with PCB engineering
+judgment. Either approve the floorplan or modify constraints and trigger a new optimisation cycle.
+
+**Inputs:**
+
+- `violations` JOIN `constraints` — human-readable violation list with reasons
+- `score_history` — convergence curve (did the optimizer converge or plateau?)
+- `placement_score` — summary metrics
+- Step 9.5 visual findings — mandatory input; do not review without completing visual inspection first
+
+**Processing:**
+
+1. Categorise violations by severity:
+   - Hard violations with large delta → must fix (e.g. FIXED connector not at board edge)
+   - Soft violations with small delta → acceptable tradeoff (e.g. decoupling cap 2.1 mm instead of 2.0 mm)
+2. Incorporate Step 9.5 visual findings — any visual FAIL overrides a numeric PASS
+3. Diagnose root cause: Is it a constraint weight issue? A board area problem? Conflicting constraints?
+4. Choose action:
+   - **APPROVE** — all visual checks pass and violations are acceptable tradeoffs
+   - **MODIFY** — adjust constraint weights or distances, create new `design_version`, re-run Steps 5–9.5
+   - **RERUN** — same constraints, re-run optimizer from Step 6 (different random seed may escape local minimum)
+
+**Autonomous iteration loop — MANDATORY. After writing the review decision, act on it immediately:**
+
+```text
+MAX_ITERATIONS = 3
+
+iteration = 0
+while True:
+    if action == APPROVE:
+        break
+    if iteration >= MAX_ITERATIONS:
+        report to user which checks still fail, stop
+        break
+    iteration += 1
+    if action == RERUN:
+        re-run Steps 6 → 7 → 8 → 9 → 9.5 → 10
+    if action == MODIFY:
+        re-enter at Step 4 (new version) → 5 → 6 → 7 → 8 → 9 → 9.5 → 10
+```
+
+Never stop between cycles to ask the user. Every cycle must include Step 9.5.
+
+**Outputs (DB writes):**
+
+- `review_notes(run_id, note, action)`
+- `constraints` — updated weight/dist values if action=MODIFY
+- `design_versions(status=DRAFT)` — new version row if action=MODIFY
+
+**Helper scripts:**
+
+- `db_read_violations.py`
+- `db_read_score_history.py`
+- `db_write_review.py`
+- `db_write_constraints.py` — only if action=MODIFY
+- `db_new_version.py` — only if action=MODIFY

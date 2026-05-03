@@ -104,12 +104,17 @@ def cells_for(x, y, w, h, cyd, res):
     return [(cx, cy) for cx in range(cx0, cx1) for cy in range(cy0, cy1)]
 
 
-def _is_corner_adjacent(x, y, w, h, W, H, tol=2.0):
-    """True when the component body touches two board edges simultaneously.
+def _is_corner_adjacent(x, y, w, h, W, H, tol=0.5):
+    """True when the component body is flush against two board edges simultaneously.
 
-    Only corner-adjacent FIXED components may overlap mount-clearance keep-outs.
-    Single-edge FIXED components (e.g. a GPIO header spanning one full edge) must
-    still be nudged away from corner keep-out zones.
+    Only genuinely corner-mounted FIXED components may overlap mount-clearance
+    keep-outs.  Single-edge FIXED components (e.g. a left-edge connector placed
+    near y=0 but not actually touching the top edge) must NOT be exempt.
+
+    The tolerance is intentionally tight (0.5 mm ≈ one grid cell) so that only
+    components whose leading edge is within half a grid cell of the board border
+    are considered flush.  A connector placed at y=2 on a left edge does NOT
+    touch the top edge and must not be exempted from mount-hole keep-outs.
     """
     px1, py1 = x + w, y + h
     touches_left = x <= tol

@@ -202,16 +202,17 @@ def test_fixed_component_exempt_from_mount_clearance_keep_out(tmp_path):
     )
     conn.execute("UPDATE design_versions SET status='LOCKED', hash='testhash' WHERE id=?", (vid,))
     rid = conn.execute("INSERT INTO optimization_runs(version_id, algorithm) VALUES (?,?)", (vid, "test")).lastrowid
+    # Place flush at (0,0) — genuinely corner-adjacent, touching both left and top edges
     conn.execute(
         "INSERT INTO placements(run_id, component_id, x_mm, y_mm, status) VALUES (?,?,?,?,?)",
-        (rid, cid, 1.0, 1.0, "FIXED"),
+        (rid, cid, 0.0, 0.0, "FIXED"),
     )
     conn.commit()
     conn.close()
 
     result = write_violations(rid, db_file)
     assert result["keep_out_violations"] == 0, (
-        "FIXED components overlapping mount-clearance keep-outs must not be reported as violations"
+        "Corner-adjacent FIXED components overlapping mount-clearance keep-outs must not be reported as violations"
     )
 
 

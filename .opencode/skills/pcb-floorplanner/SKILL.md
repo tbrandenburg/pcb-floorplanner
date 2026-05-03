@@ -722,8 +722,40 @@ Categorise:
 - `delta_mm < 0` AND `hard=false` → soft violation, check if acceptable tradeoff
 - All soft violations within 20% of limit → APPROVE
 Choose action: APPROVE / MODIFY / RERUN
-- MODIFY: create new version, update constraint weights, re-run Steps 5–8
+- MODIFY: create new version, update constraint weights, re-run Steps 5–9.5
 - RERUN: same version, new `optimization_runs` row, different random seed
+
+**Step 9.5 visual findings are mandatory input. Any visual FAIL overrides a numeric PASS.
+Never write APPROVE if Step 9.5 produced a MODIFY decision.**
+
+### Autonomous iteration loop — MANDATORY
+
+After writing the review decision with `db_write_review.py`, the agent **must** act on it
+immediately and autonomously. Do NOT stop and wait for the user.
+
+```text
+MAX_ITERATIONS = 3   ← hard cap; stop and report if not APPROVE after 3 cycles
+
+iteration = 0
+while True:
+    if action == APPROVE:
+        break                      ← done, deliver result
+    if iteration >= MAX_ITERATIONS:
+        report failure to user, explain which checks still fail, stop
+        break
+    iteration += 1
+    if action == RERUN:
+        re-run Steps 6 → 7 → 8 → 9 → 9.5 → 10   (same version, new seed)
+    if action == MODIFY:
+        re-enter at Step 4 (new version) → 5 → 6 → 7 → 8 → 9 → 9.5 → 10
+```
+
+**Rules:**
+- Every cycle must complete Step 9.5 (adversarial visual inspection) before Step 10.
+- Never skip the visual inspection to save time. It is the primary defect gate.
+- If the same defect recurs after a MODIFY cycle, escalate weight or make the constraint hard=1.
+- After hitting MAX_ITERATIONS without APPROVE, summarise: which visual checks failed, which
+  violations remain, and what a human engineer should change next.
 
 ## Modify cycle (Step 10 → Step 4)
 

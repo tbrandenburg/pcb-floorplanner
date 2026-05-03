@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".opencode" / "skills" / "pcb-floorplanner" / "scripts"))
-from placer_greedy import cells_for, fits, place_at, snap
+from placer_greedy import cells_for, fits, place_at, snap, _is_corner_adjacent
 
 
 # ── cells_for ─────────────────────────────────────────────────────────────────
@@ -154,6 +154,32 @@ def test_fits_mount_clearance_allows_corner_adjacent_only():
     # single-edge only (touches bottom edge only on a 50x50 board, at y=48)
     occupied2 = {(3, 48): -1, (4, 48): -1, (3, 49): -1, (4, 49): -1}
     assert fits(3, 48, 2, 2, 0, 50, 50, occupied2, 1.0, ignore_keep_outs=True) is False
+
+
+def test_is_corner_adjacent_single_left_edge_near_top_not_corner():
+    """Regression for J4 bug: a left-edge FIXED connector placed near y=2mm must NOT
+    be classified as corner-adjacent just because y <= old tol of 2.0.
+
+    Previously tol=2.0 caused y=2.0 to satisfy touches_top, yielding a false
+    corner-adjacency result and silently exempting the component from the
+    mount-hole keep-out that it physically overlapped.
+    """
+    W, H = 85.0, 56.0
+    # J4-like: left-edge connector at x=1, y=2, w=6, h=5
+    # touches_left=True (x=1 <= 0.5? No, 1>0.5) — actually with new tol=0.5:
+    # touches_left: x=1.0 <= 0.5 → False
+    # So it is NOT corner-adjacent (good — it's not even flush to the left edge!)
+    assert _is_corner_adjacent(1.0, 2.0, 6.0, 5.0, W, H) is False
+
+
+def test_is_corner_adjacent_flush_corner_is_true():
+    """A connector at (0,0) touching both left and top edges must be corner-adjacent."""
+    assert _is_corner_adjacent(0.0, 0.0, 9.0, 7.0, 85.0, 56.0) is True
+
+
+def test_is_corner_adjacent_flush_left_only_is_false():
+    """A connector flush to left edge but mid-board vertically is NOT corner-adjacent."""
+    assert _is_corner_adjacent(0.0, 20.0, 9.0, 7.0, 85.0, 56.0) is False
 
 
 def test_fits_mixed_sentinels_hard_takes_priority():
