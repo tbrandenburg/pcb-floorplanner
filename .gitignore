@@ -3,9 +3,12 @@
 __pycache__/
 *.pyc
 current_render.png
+current_floorplan.png
 floorplan_check.png
 pcb_cairo.py
 pcb_matplotlib.py
 pcb_shapely.py
 output/
 db/floorplan.db
+*.png
+.playwright-mcp/
