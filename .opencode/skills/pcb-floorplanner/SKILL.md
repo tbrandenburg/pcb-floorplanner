@@ -189,7 +189,7 @@ keep_out.x_mm = hx - kw / 2
 keep_out.y_mm = hy - kh / 2
 ```
 
-Example — RPi4B mount hole at (61.5, 3.5) with 7×7 mm keep-out:
+Example — mount hole at (61.5, 3.5) with 7×7 mm keep-out on an 85 mm wide board:
 
 ```text
 x_mm = 61.5 - 3.5 = 58.0   ← NOT board_width - keep_out_width (85 - 7 = 78)
