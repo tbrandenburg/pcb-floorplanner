@@ -751,6 +751,7 @@ while True:
 ```
 
 **Rules:**
+
 - Every cycle must complete Step 9.5 (adversarial visual inspection) before Step 10.
 - Never skip the visual inspection to save time. It is the primary defect gate.
 - If the same defect recurs after a MODIFY cycle, escalate weight or make the constraint hard=1.
