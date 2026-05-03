@@ -41,17 +41,17 @@ db/                          Schema, DB helpers, and legacy schema tests
 tests/
   conftest.py                Shared fixtures: make_db(), seed_session(), seed_component(), etc.
   unit/
-    test_schema.py           17 DB integrity tests (FK, UNIQUE, CHECK, immutability)
-    test_scorer.py           38 scorer unit tests (keep-out, overlap, NEAR/FAR/ALIGN, HPWL)
-    test_placer.py           19 placer unit tests (cells_for, fits, snap, place_at)
-    test_db_write_board.py   9  input validation tests (keep-out bounds, mount hole annular ring)
-    test_db_patch_board.py   4  trigger-bypass safety tests
-    test_db_check_edge_budget.py  13 edge budget validation tests
-    test_validate_placements.py   16 placement violation detection tests
-    test_write_violations_keep_out.py  8 keep-out violation persistence tests
+    test_schema.py           DB integrity tests (FK, UNIQUE, CHECK, immutability)
+    test_scorer.py           Scorer unit tests (keep-out, overlap, NEAR/FAR/ALIGN, HPWL)
+    test_placer.py           Placer unit tests (cells_for, fits, snap, place_at)
+    test_db_write_board.py   Input validation tests (keep-out bounds, mount hole annular ring)
+    test_db_patch_board.py   Trigger-bypass safety tests
+    test_db_check_edge_budget.py  Edge budget validation tests
+    test_validate_placements.py   Placement violation detection tests
+    test_write_violations_keep_out.py  Keep-out violation persistence tests
   integration/
-    test_placer_integration.py  4 tests — boundary, keep-out, overlap invariant, large component
-    test_sa_optimizer.py        3 tests — improvement, keep-out elimination, no off-board placements
+    test_placer_integration.py  Boundary, keep-out, overlap invariant, large component
+    test_sa_optimizer.py        Improvement, keep-out elimination, no off-board placements
 
 output/
   floorplan.png              Current render
@@ -67,11 +67,11 @@ output/
 | Target | Description |
 |---|---|
 | `make db-init` | Initialise `db/floorplan.db` from `schema.sql`. Asks before overwriting an existing DB. |
-| `make db-verify` | Run the 17 schema integrity tests against the live DB structure. |
+| `make db-verify` | Run schema integrity tests against the live DB structure. |
 | `make db-status` | Show all design versions and optimization runs in the live DB. |
 | `make db-summary` | Show component/net/constraint counts and latest placement score. |
 | `make lint` | Run ruff over `db/`, `scripts/`, and `tests/`. Enforces F (pyflakes) and E/W errors. |
-| `make test` | Run all 131 tests (unit + integration) with verbose output. |
+| `make test` | Run the full test suite (unit + integration) with verbose output. |
 
 ---
 

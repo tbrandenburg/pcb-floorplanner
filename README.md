@@ -89,7 +89,7 @@ That's it. The skill handles everything from IC selection to rendered PNG.
 | `make db-status` | Show all design versions and optimisation runs |
 | `make db-summary` | Component count, violations, and latest score |
 | `make lint` | ruff over `db/`, `scripts/`, `tests/` |
-| `make test` | Run all 131 tests (unit + integration) |
+| `make test` | Run the full test suite (unit + integration) |
 | `make qa` | format + lint + test |
 
 ---
@@ -140,29 +140,11 @@ total_penalty = constraint_penalty + overlap_penalty + net_length_est + keep_out
 
 ## Tests
 
-131 tests across unit and integration suites:
-
-```text
-tests/unit/
-  test_schema.py               17 DB integrity tests (FK, UNIQUE, CHECK, immutability triggers)
-  test_scorer.py               38 scorer unit tests (keep-out, overlap, NEAR/FAR/ALIGN/FIXED, HPWL,
-                                  hard flag propagation, hard=1 FIXED penalty amplification)
-  test_placer.py               19 placer unit tests (cells_for, fits, snap, place_at)
-  test_db_write_board.py        9 input validation tests (keep-out bounds, mount hole annular ring,
-                                  is_mount_clearance flag, full-edge keep-out warning)
-  test_db_patch_board.py        4 trigger-bypass safety tests
-  test_db_check_edge_budget.py 13 edge budget validation tests
-  test_validate_placements.py  16 placement violation detection tests
-  test_write_violations_keep_out.py  8 keep-out violation persistence tests
-
-tests/integration/
-  test_placer_integration.py   4 tests — boundary, keep-out, overlap invariant, large component
-  test_sa_optimizer.py         3 tests — improvement, keep-out elimination, no off-board placements
-```
+Unit and integration test suites cover DB integrity, scorer correctness, placer invariants,
+input validation, edge budget checks, and placement violation detection.
 
 ```bash
 make test
-# 131 passed
 ```
 
 ---
