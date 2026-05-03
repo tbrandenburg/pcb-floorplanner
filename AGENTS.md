@@ -112,3 +112,78 @@ output/
   FIXED components at board edges. Pass `board=None` for backward-compatible zero penalty.
 - **Edge keep-out warning:** `db_write_board.py` emits a `WARNING` to stderr when a keep-out zone
   spans a full board edge — this pattern blocks FIXED edge connectors and is almost always wrong.
+
+---
+
+## Release workflow
+
+Releases are cut via `make release BUMP=<level>` and published to GitHub. The agent
+must follow this procedure exactly whenever asked to cut a release.
+
+### Semantic versioning rules
+
+| Change type | BUMP value |
+|---|---|
+| Breaking change to pipeline, schema, or public API | `major` |
+| New feature, new Make target, new pipeline step, new script | `minor` |
+| Bug fix, docs update, lint/test fix, refactor with no new surface | `patch` |
+
+When in doubt, prefer `minor` over `patch` and `patch` over `major`.
+
+### Agent steps to cut a release
+
+1. **Determine BUMP level** — inspect `git log` from the last tag to `HEAD`
+   (or all commits if no tag exists). Classify each commit by its conventional
+   prefix (`feat` → minor, `fix`/`docs`/`chore`/`refactor` → patch, `BREAKING
+   CHANGE` or `!` suffix → major). The highest classification wins.
+
+   ```bash
+   git log $(git describe --tags --abbrev=0 2>/dev/null || echo "")..HEAD --oneline
+   ```
+
+2. **Update CHANGELOG.md — `[Unreleased]` section** — before calling `make
+   release`, write the changelog entries for this release into the
+   `## [Unreleased]` section. Group entries under these headings (omit empty
+   groups):
+
+   ```markdown
+   ### Added
+   ### Changed
+   ### Fixed
+   ### Removed
+   ### Deprecated
+   ```
+
+   Base each bullet on the commit messages since the last tag. Be concise and
+   user-facing (not commit-message verbatim).
+
+3. **Commit the pre-filled CHANGELOG.md** with message `docs: update changelog
+   for upcoming release`. Do NOT include other changes in this commit.
+
+4. **Run `make release BUMP=<level>`** — the target will:
+   - Run the full QA gate (`make qa`).
+   - Rename `[Unreleased]` to `[vX.Y.Z] — YYYY-MM-DD` in `CHANGELOG.md`.
+   - Insert a fresh empty `[Unreleased]` section above it.
+   - Update the comparison links at the bottom of `CHANGELOG.md`.
+   - Commit `CHANGELOG.md` as `chore: release vX.Y.Z`.
+   - Create an annotated tag `vX.Y.Z`.
+   - Push the commit and tag to `origin main`.
+   - Create the GitHub release via `gh release create` using the new
+     changelog section as release notes.
+
+5. **Verify** — confirm the tag and release exist:
+
+   ```bash
+   git tag --sort=-v:refname | head -3
+   gh release view
+   ```
+
+### Rules
+
+- Never skip `make qa` before a release.
+- Never manually create the git tag — always use `make release`.
+- Never push a release from a dirty working tree.
+- The `[Unreleased]` section in `CHANGELOG.md` must always exist and be at
+  the top. `make release` maintains this invariant automatically.
+- Only the agent-written changelog bullets go in `[Unreleased]` before
+  release; `make release` handles the section rename and link updates.
