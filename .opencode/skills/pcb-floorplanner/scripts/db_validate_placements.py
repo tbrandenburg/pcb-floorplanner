@@ -84,8 +84,11 @@ def validate(run_id, db_path=DEFAULT_DB):
 
     violations = []
 
-    # 1. Mount hole overlaps (circle geometry)
+    # 1. Mount hole overlaps (circle geometry) — FIXED components exempt (e.g. edge connectors
+    #    that legitimately share board space with mount holes on the real PCB)
     for name, ctype, x, y, w, h, status in placements:
+        if status == "FIXED":
+            continue
         for hx, hy, hd in mount_holes:
             if _rect_circle_overlap(x, y, w, h, hx, hy, hd / 2):
                 violations.append(
