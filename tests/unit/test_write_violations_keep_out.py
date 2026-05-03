@@ -215,7 +215,54 @@ def test_fixed_component_exempt_from_mount_clearance_keep_out(tmp_path):
     )
 
 
-def test_fixed_component_violates_non_mount_keep_out(tmp_path):
+def test_fixed_single_edge_component_violates_mount_clearance_keep_out(tmp_path):
+    """A FIXED component that is NOT corner-adjacent but overlaps a mount-clearance
+    keep-out is a real violation and must NOT be silently suppressed.
+
+    Regression for the root cause: write_violations.py previously used a blanket
+    `continue` for any FIXED+is_mount_clearance overlap, hiding valid violations from
+    single-edge connectors that drifted into corner zones.
+    """
+    db_file = str(tmp_path / "test.db")
+    conn = db_init.init(db_file)
+
+    sid = conn.execute("INSERT INTO design_sessions(prompt, model) VALUES (?,?)", ("test", "test")).lastrowid
+    vid = conn.execute("INSERT INTO design_versions(session_id) VALUES (?)", (sid,)).lastrowid
+
+    # J_wide: 40mm wide, placed in middle of bottom edge (y=93), touches only bottom edge
+    cid = conn.execute("INSERT INTO components(version_id, name, type) VALUES (?,?,?)", (vid, "J_wide", "CONN")).lastrowid
+    conn.execute(
+        "INSERT INTO component_geometry(component_id, width_mm, height_mm, courtyard_margin) VALUES (?,?,?,?)",
+        (cid, 40.0, 5.0, 0.0),
+    )
+    conn.execute(
+        "INSERT INTO board_outline(version_id, width_mm, height_mm, grid_resolution) VALUES (?,?,?,?)",
+        (vid, 100.0, 100.0, 1.0),
+    )
+    # Mount-clearance keep-out at bottom-right corner (x=90..100, y=90..100)
+    conn.execute(
+        "INSERT INTO keep_out_zones(version_id, x_mm, y_mm, width_mm, height_mm, reason, is_mount_clearance)"
+        " VALUES (?,?,?,?,?,?,1)",
+        (vid, 90.0, 90.0, 10.0, 10.0, "mount hole clearance BR"),
+    )
+    conn.execute("UPDATE design_versions SET status='LOCKED', hash='testhash' WHERE id=?", (vid,))
+    rid = conn.execute("INSERT INTO optimization_runs(version_id, algorithm) VALUES (?,?)", (vid, "test")).lastrowid
+    # Place J_wide at x=55, y=93 — body spans x=55..95, y=93..98.
+    # Overlaps BR keep-out (x=90..100, y=90..100) by 5×5mm.
+    # touches_right: px1=95 < 98 (100-2) → False.  touches_bottom: py1=98 >= 98 → True.
+    # Only touches bottom edge → NOT corner-adjacent → must be a violation.
+    conn.execute(
+        "INSERT INTO placements(run_id, component_id, x_mm, y_mm, status) VALUES (?,?,?,?,?)",
+        (rid, cid, 55.0, 93.0, "FIXED"),
+    )
+    conn.commit()
+    conn.close()
+
+    result = write_violations(rid, db_file)
+    assert result["keep_out_violations"] == 1, (
+        "Single-edge FIXED component overlapping a corner mount-clearance zone "
+        "must be reported as a violation (not silently suppressed)"
+    )
     """FIXED components overlapping a non-mount-clearance keep-out (e.g. RF zone) ARE violations."""
     db_file = str(tmp_path / "test.db")
     conn = db_init.init(db_file)

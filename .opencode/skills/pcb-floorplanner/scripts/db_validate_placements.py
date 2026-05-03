@@ -49,7 +49,32 @@ def _load(conn, run_id):
         (run_id,),
     ).fetchall()
 
-    return placements, mount_holes, keep_outs
+    board = conn.execute(
+        """SELECT b.width_mm, b.height_mm
+           FROM board_outline b
+           JOIN optimization_runs r ON r.version_id = b.version_id
+           WHERE r.id = ?""",
+        (run_id,),
+    ).fetchone()
+
+    return placements, mount_holes, keep_outs, board
+
+
+def _is_corner_adjacent(x, y, w, h, W, H, tol=2.0):
+    """True when the component body touches two board edges simultaneously.
+
+    Only a corner-adjacent FIXED component may legitimately overlap a mount-clearance
+    keep-out.  A single-edge component (touching exactly one edge) can always be slid
+    along that edge to clear the corner zone, so it is not exempt.
+    """
+    px1, py1 = x + w, y + h
+    touches = sum([
+        x   <= tol,
+        px1 >= W - tol,
+        y   <= tol,
+        py1 >= H - tol,
+    ])
+    return touches >= 2
 
 
 def _rect_circle_overlap(rx, ry, rw, rh, cx, cy, r):
@@ -78,17 +103,22 @@ def validate(run_id, db_path=DEFAULT_DB):
     else:
         conn = connect(db_path)
         _close = True
-    placements, mount_holes, keep_outs = _load(conn, run_id)
+    placements, mount_holes, keep_outs, board = _load(conn, run_id)
     if _close:
         conn.close()
 
+    BW = board[0] if board else None
+    BH = board[1] if board else None
+
     violations = []
 
-    # 1. Mount hole overlaps (circle geometry) — FIXED components exempt (e.g. edge connectors
-    #    that legitimately share board space with mount holes on the real PCB)
+    # 1. Mount hole overlaps (circle geometry).
+    #    FIXED components are NOT blanket-exempt: only corner-adjacent FIXED
+    #    connectors are allowed to share space with a mount hole.
     for name, ctype, x, y, w, h, status in placements:
-        if status == "FIXED":
-            continue
+        is_fixed = status == "FIXED"
+        if is_fixed and BW is not None and _is_corner_adjacent(x, y, w, h, BW, BH):
+            continue  # cornered connector — mount hole proximity is unavoidable
         for hx, hy, hd in mount_holes:
             if _rect_circle_overlap(x, y, w, h, hx, hy, hd / 2):
                 violations.append(
@@ -96,12 +126,16 @@ def validate(run_id, db_path=DEFAULT_DB):
                     f"overlaps hole at ({hx},{hy}) r={hd / 2:.2f}mm"
                 )
 
-    # 2. Keep-out zone overlaps (rectangular, FIXED exempt from mount clearances)
+    # 2. Keep-out zone overlaps (rectangular).
+    #    FIXED components are exempt from mount-clearance keep-outs ONLY when
+    #    corner-adjacent (touching two board edges).  Single-edge FIXED components
+    #    are penalised so the SA optimiser slides them away from corner zones.
     for name, ctype, x, y, w, h, status in placements:
         is_fixed = status == "FIXED"
+        corner_adj = is_fixed and BW is not None and _is_corner_adjacent(x, y, w, h, BW, BH)
         for kx, ky, kw, kh, reason, is_mount_clearance in keep_outs:
-            if is_fixed and is_mount_clearance:
-                continue
+            if corner_adj and is_mount_clearance:
+                continue  # cornered connector legitimately overlaps mount-clearance zone
             if _rect_rect_overlap(x, y, w, h, kx, ky, kw, kh):
                 ovx = min(x + w, kx + kw) - max(x, kx)
                 ovy = min(y + h, ky + kh) - max(y, ky)

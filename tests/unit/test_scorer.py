@@ -78,11 +78,11 @@ def test_keep_out_penalty_multiple_components_summed():
 
 
 def test_fixed_exempt_from_mount_clearance_keep_out():
-    """FIXED component is exempt from is_mount_clearance=1 keep-out."""
+    """FIXED component is exempt from is_mount_clearance=1 keep-out (backwards compat, no board)."""
     p = {1: make_comp(1, 1, 4, 4)}
     ko = [(0, 0, 10, 10, 1)]  # is_mount_clearance=1
     penalty = keep_out_penalty(p, ko, fixed_ids={1})
-    assert penalty == 0.0, "FIXED component must be exempt from mount-clearance keep-out"
+    assert penalty == 0.0, "FIXED component must be exempt from mount-clearance keep-out (no board → compat)"
 
 
 def test_fixed_not_exempt_from_non_mount_keep_out():
@@ -91,6 +91,54 @@ def test_fixed_not_exempt_from_non_mount_keep_out():
     ko = [(0, 0, 10, 10, 0)]  # is_mount_clearance=0
     penalty = keep_out_penalty(p, ko, fixed_ids={1})
     assert penalty > 0.0, "FIXED component must NOT be exempt from RF/non-mount keep-out"
+
+
+# ── corner-adjacency exemption (new invariant) ────────────────────────────────
+
+
+def test_corner_adjacent_fixed_exempt_from_mount_clearance():
+    """Corner-adjacent FIXED component (touches two edges) is exempt from mount-clearance."""
+    # Board 100x100, component at top-left corner touching both left and top edges
+    p = {1: make_comp(0, 0, 5, 5)}  # body [0..5, 0..5] — touches left (x=0) and top (y=0)
+    ko = [(0, 0, 7, 7, 1)]  # mount-clearance zone at TL corner
+    penalty = keep_out_penalty(p, ko, fixed_ids={1}, board=(100, 100))
+    assert penalty == 0.0, "Corner-adjacent FIXED connector must be exempt from corner mount-clearance"
+
+
+def test_single_edge_fixed_not_exempt_from_mount_clearance():
+    """Single-edge FIXED component (touches only bottom edge) is NOT exempt from corner keep-out.
+
+    This is the J8 GPIO header scenario: a 44mm header sits along the bottom edge but
+    its right end drifts into the bottom-right corner mount-clearance zone.  Since J8
+    only touches the bottom edge (not the right edge) it is not corner-adjacent and
+    must be penalised so the SA optimiser slides it clear.
+    """
+    # Board 100x50. Component spans x=30..74 (44mm), y=45..50 (5mm).
+    # Touches bottom (y+h=50 >= 50-tol=48) but NOT right (x+w=74 < 100-2=98).
+    p = {1: make_comp(30, 45, 44, 5)}
+    # Bottom-right corner mount-clearance zone
+    ko = [(93, 43, 7, 7, 1)]  # zone x=93..100, y=43..50
+    penalty = keep_out_penalty(p, ko, fixed_ids={1}, board=(100, 50))
+    # Component body x=30..74 does NOT overlap ko x=93..100, so penalty is 0 regardless.
+    # Use a zone that J8's right end actually overlaps:
+    ko2 = [(70, 43, 7, 7, 1)]  # zone x=70..77, y=43..50 — overlaps x=70..74
+    penalty2 = keep_out_penalty(p, ko2, fixed_ids={1}, board=(100, 50))
+    assert penalty2 > 0.0, (
+        "Single-edge FIXED component must NOT be exempt from corner mount-clearance keep-out"
+    )
+
+
+def test_single_edge_fixed_bottom_touches_right_corner_is_penalised():
+    """Regression: FIXED bottom-edge component overlapping a BR corner keep-out is penalised."""
+    # Exact J8 scenario scaled down: 85x56 board, J8 at x=16,y=50 size 44x5
+    # BR keep-out at x=58,y=49 size 7x7 (centred on mount hole at 61.5,52.5)
+    p = {1: make_comp(16, 50, 44, 5)}   # x=[16,60], y=[50,55]
+    ko = [(58, 49, 7, 7, 1)]            # x=[58,65], y=[49,56]
+    # body overlaps ko at x=[58,60], y=[50,55] → 2×5 = 10mm²
+    penalty = keep_out_penalty(p, ko, fixed_ids={1}, board=(85, 56))
+    assert math.isclose(penalty, 500.0 * 2.0 * 5.0, rel_tol=1e-6), (
+        f"Expected 5000.0 penalty for J8-style overlap, got {penalty}"
+    )
 
 
 # ── overlap_penalty ───────────────────────────────────────────────────────────

@@ -62,17 +62,45 @@ def dist(p1, p2):
     return math.hypot(ax - bx, ay - by)
 
 
-def keep_out_penalty(placements, keep_outs, fixed_ids=None):
+def _is_corner_adjacent(px0, py0, px1, py1, W, H, tol=2.0):
+    """Return True when the component bounding box touches TWO board edges simultaneously.
+
+    A component that sits at a board corner (e.g. a USB-C connector at the top-left
+    corner) unavoidably overlaps the mount-hole clearance keep-out that protects the
+    screw hole at that corner.  Such overlap is intentional and should not be penalised.
+
+    A component that only touches ONE edge (e.g. a 44 mm GPIO header along the bottom
+    edge) can always be slid along that edge to avoid a corner keep-out, so it is NOT
+    exempt and should be penalised when it overlaps a corner keep-out.
+
+    tol: tolerance in mm — the component body must be within this distance of the edge
+    to count as "touching" it.
+    """
+    touches_left   = px0 <= tol
+    touches_right  = px1 >= W - tol
+    touches_top    = py0 <= tol
+    touches_bottom = py1 >= H - tol
+    edges_touched = sum([touches_left, touches_right, touches_top, touches_bottom])
+    return edges_touched >= 2
+
+
+def keep_out_penalty(placements, keep_outs, fixed_ids=None, board=None):
     """Penalise components whose body overlaps any keep-out zone.
 
-    FIXED components (edge connectors) are exempt from mount-clearance keep-outs
-    (is_mount_clearance=True) because they are intentionally placed at board edges
-    that may overlap corner screw zones. They are NOT exempt from other keep-outs
-    (e.g. RF antenna areas).
+    FIXED components are exempt from mount-clearance keep-outs ONLY when they are
+    corner-adjacent — i.e. their body touches two board edges simultaneously.  A
+    connector at a corner (e.g. USB-C at top-left) physically cannot avoid the
+    corner screw clearance zone.  A connector that only spans one edge (e.g. a
+    44 mm GPIO header on the bottom edge) can be slid away from the corner and
+    therefore receives a full penalty when it overlaps a corner mount-clearance zone.
 
     keep_outs entries: (x, y, w, h) or (x, y, w, h, is_mount_clearance).
     The 5th element is optional for backwards compatibility (defaults to False).
+
+    board: optional (W, H) tuple required for corner-adjacency test.  When omitted
+    the old blanket-exemption behaviour is preserved for backwards compatibility.
     """
+    W, H = (board[0], board[1]) if board else (None, None)
     penalty = 0.0
     for comp_id, p in placements.items():
         is_fixed = fixed_ids and comp_id in fixed_ids
@@ -82,7 +110,12 @@ def keep_out_penalty(placements, keep_outs, fixed_ids=None):
             kx, ky, kw, kh = ko[:4]
             is_mount_clearance = bool(ko[4]) if len(ko) > 4 else False
             if is_fixed and is_mount_clearance:
-                continue  # FIXED connectors may legally overlap mount-hole corners
+                if W is None:
+                    # No board dims — fall back to blanket exemption (backwards compat)
+                    continue
+                if _is_corner_adjacent(px0, py0, px1, py1, W, H):
+                    continue  # truly cornered connector: exemption is legitimate
+                # Single-edge FIXED component — apply penalty so SA slides it away
             kx1, ky1 = kx + kw, ky + kh
             if px0 < kx1 and px1 > kx and py0 < ky1 and py1 > ky:
                 ovx = min(px1, kx1) - max(px0, kx)
@@ -201,7 +234,7 @@ def score(placements, constraints, nets, keep_outs=None, board=None, fixed_ids=N
 
     total = constraint_penalty + overlap_penalty + net_length_est
     if keep_outs:
-        ko_pen = keep_out_penalty(placements, keep_outs, fixed_ids=fixed_ids)
+        ko_pen = keep_out_penalty(placements, keep_outs, fixed_ids=fixed_ids, board=board)
         total += ko_pen
     else:
         ko_pen = 0.0

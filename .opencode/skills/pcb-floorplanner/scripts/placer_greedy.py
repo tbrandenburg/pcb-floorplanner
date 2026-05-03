@@ -104,15 +104,45 @@ def cells_for(x, y, w, h, cyd, res):
     return [(cx, cy) for cx in range(cx0, cx1) for cy in range(cy0, cy1)]
 
 
+def _is_corner_adjacent(x, y, w, h, W, H, tol=2.0):
+    """True when the component body touches two board edges simultaneously.
+
+    Only corner-adjacent FIXED components may overlap mount-clearance keep-outs.
+    Single-edge FIXED components (e.g. a GPIO header spanning one full edge) must
+    still be nudged away from corner keep-out zones.
+    """
+    px1, py1 = x + w, y + h
+    touches_left   = x  <= tol
+    touches_right  = px1 >= W - tol
+    touches_top    = y   <= tol
+    touches_bottom = py1 >= H - tol
+    return sum([touches_left, touches_right, touches_top, touches_bottom]) >= 2
+
+
 def fits(x, y, w, h, cyd, W, H, occupied, res, ignore_keep_outs=False, ignore_fixed_ids=None):
     if x < 0 or y < 0 or x + w > W or y + h > H:
         return False
+    # Determine whether this FIXED component is corner-adjacent so we only exempt
+    # truly cornered connectors from mount-clearance keep-out cells (-1).
+    # Hard keep-out cells (-2, e.g. RF/antenna zones) block ALL components, even
+    # corner-adjacent FIXED connectors.
+    corner_adj = _is_corner_adjacent(x, y, w, h, W, H) if ignore_keep_outs else False
     for cell in cells_for(x, y, w, h, cyd, res):
         occupant = occupied.get(cell)
         if occupant is None:
             continue
-        if occupant == -1 and ignore_keep_outs:
-            continue  # FIXED edge components are allowed to sit in keep-out zones
+        if occupant == -1 and ignore_keep_outs and corner_adj:
+            # Mount-clearance zone + corner-adjacent FIXED connector → allowed
+            continue
+        if occupant == -2:
+            # Hard keep-out (RF, antenna, etc.) — blocks every component unconditionally
+            return False
+        if occupant in (-1, -2) and ignore_keep_outs and not corner_adj:
+            # Any keep-out cell for a single-edge FIXED component → blocked
+            return False
+        if occupant in (-1, -2):
+            # Normal (non-FIXED) component — always blocked by any keep-out cell
+            return False
         if ignore_fixed_ids and occupant in ignore_fixed_ids:
             continue  # FIXED components may have courtyard overlap with other FIXED components
         return False
@@ -195,12 +225,21 @@ def greedy_place(version_id, db_path=DEFAULT_DB):
     conn = connect(db_path)
     W, H, RES, components, fixed_names, near_pairs, keep_outs, requirements = load_design(conn, version_id)
 
-    # Pre-mark keep-out cells
+    # Pre-mark keep-out cells using two sentinels so fits() can distinguish zone types:
+    #   -1  mount-clearance keep-out  (corner screw zones)
+    #       → FIXED corner-adjacent components may overlap these (unavoidable geometry)
+    #   -2  hard keep-out             (RF, antenna, any non-mount zone)
+    #       → NO component may ever overlap these, not even FIXED edge connectors
     occupied = {}
-    for kx, ky, kw, kh, *_ in keep_outs:  # 5-tuple (x,y,w,h,is_mount_clearance) or 4-tuple legacy
+    for row in keep_outs:
+        kx, ky, kw, kh = row[0], row[1], row[2], row[3]
+        is_mc = bool(row[4]) if len(row) > 4 else False
+        sentinel = -1 if is_mc else -2
         for cx in range(int(kx / RES), math.ceil((kx + kw) / RES)):
             for cy in range(int(ky / RES), math.ceil((ky + kh) / RES)):
-                occupied[(cx, cy)] = -1  # -1 = keep-out
+                # Never downgrade a hard keep-out cell to mount-clearance
+                if occupied.get((cx, cy)) != -2:
+                    occupied[(cx, cy)] = sentinel
 
     placements = {}  # comp_id → (x, y)
 
@@ -364,7 +403,7 @@ def greedy_place(version_id, db_path=DEFAULT_DB):
         )
 
     for (cx, cy), comp_id in occupied.items():
-        if comp_id == -1:
+        if comp_id in (-1, -2):  # keep-out sentinels — not real components
             continue
         try:
             conn.execute(

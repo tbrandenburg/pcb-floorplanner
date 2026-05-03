@@ -14,6 +14,7 @@ _db_dir = next(p / "db" for p in _here.parents if (p / "db" / "db_init.py").exis
 sys.path.insert(0, str(_db_dir))
 from db_init import connect, DEFAULT_DB
 from scorer import load_run, score
+from placer_greedy import _is_corner_adjacent
 
 
 def write_violations(run_id, db_path=DEFAULT_DB):
@@ -128,9 +129,15 @@ def write_violations(run_id, db_path=DEFAULT_DB):
         px0, py0 = p["x"], p["y"]
         px1, py1 = px0 + p["w"], py0 + p["h"]
         for kx, ky, kw, kh, kreason, is_mount_clearance in keep_out_rows:
-            # FIXED edge connectors may legally overlap mount-hole clearance zones;
-            # all other keep-outs (RF, antenna, etc.) apply to every component.
-            if is_fixed and is_mount_clearance:
+            # FIXED edge connectors may legally overlap mount-hole clearance zones
+            # only when they are corner-adjacent (touching two board edges at once).
+            # A single-edge FIXED component that merely drifts into a corner keep-out
+            # is a real violation and must be reported.
+            if is_fixed and is_mount_clearance and board_dims is not None:
+                if _is_corner_adjacent(px0, py0, p["w"], p["h"], board_dims[0], board_dims[1]):
+                    continue
+            elif is_fixed and is_mount_clearance and board_dims is None:
+                # Legacy: no board dims available — preserve old blanket-exempt behaviour
                 continue
             kx1, ky1 = kx + kw, ky + kh
             if px0 < kx1 and px1 > kx and py0 < ky1 and py1 > ky:

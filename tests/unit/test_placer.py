@@ -79,12 +79,49 @@ def test_fits_rejects_keep_out_cell():
 
 
 def test_fits_fixed_component_allowed_in_keep_out_zone():
-    """FIXED edge connectors must be able to sit inside keep-out zones."""
-    occupied = {(3, 3): -1, (4, 3): -1, (3, 4): -1, (4, 4): -1}  # 2x2 keep-out block
-    # normal fit → blocked
-    assert fits(3, 3, 2, 2, 0, 50, 50, occupied, 1.0) is False
-    # with ignore_keep_outs → allowed (connector placed at board edge keep-out zone)
-    assert fits(3, 3, 2, 2, 0, 50, 50, occupied, 1.0, ignore_keep_outs=True) is True
+    """FIXED corner connectors must be able to sit inside keep-out zones at board corners.
+
+    A connector at (0,0) on a 50x50 board touches both the left and top edges, so it
+    is corner-adjacent and is exempt from mount-clearance keep-outs at that corner.
+    A connector at (3,3) in the middle of the board is NOT corner-adjacent and must
+    be blocked by keep-out cells even with ignore_keep_outs=True.
+    """
+    # keep-out at top-left corner (0..2, 0..2)
+    corner_occupied = {(0, 0): -1, (1, 0): -1, (0, 1): -1, (1, 1): -1}
+
+    # component sitting in the keep-out but touching two edges → corner-adjacent → allowed
+    assert fits(0, 0, 2, 2, 0, 50, 50, corner_occupied, 1.0, ignore_keep_outs=True) is True
+
+    # same component in board interior — NOT corner-adjacent → blocked
+    interior_occupied = {(3, 3): -1, (4, 3): -1, (3, 4): -1, (4, 4): -1}
+    assert fits(3, 3, 2, 2, 0, 50, 50, interior_occupied, 1.0, ignore_keep_outs=True) is False
+
+    # without ignore_keep_outs the corner position is also blocked (normal components)
+    assert fits(0, 0, 2, 2, 0, 50, 50, corner_occupied, 1.0) is False
+
+
+def test_fits_single_edge_fixed_blocked_by_corner_keep_out():
+    """Regression for J8: a wide bottom-edge FIXED component must be blocked by a corner
+    keep-out zone it is NOT geometrically required to overlap.
+
+    On an 85x56 board, J8 (44mm wide) starts at x=16, y=50.  Its right end (x=60)
+    enters the BR corner keep-out (x=58..65).  Since J8 only touches the bottom edge
+    (not the right edge) it is NOT corner-adjacent and fits() must return False at
+    that position, forcing the nudge loop to slide it left.
+    """
+    # Build occupancy: BR corner keep-out cells on a grid with RES=1
+    # Board 85x56. Keep-out x=[58,65], y=[49,56] → cells (58..64, 49..55)
+    occupied = {}
+    for cx in range(58, 65):
+        for cy in range(49, 56):
+            occupied[(cx, cy)] = -1
+
+    # J8 at (16, 50), 44x5 — cells x=[16,60], y=[50,55] → overlaps keep-out at x=[58,60]
+    # With ignore_keep_outs=True but NOT corner-adjacent (only bottom edge touched) → False
+    assert fits(16, 50, 44, 5, 0, 85, 56, occupied, 1.0, ignore_keep_outs=True) is False
+
+    # Slide J8 left to x=12: right end at 56 < 58 → no overlap → True
+    assert fits(12, 50, 44, 5, 0, 85, 56, occupied, 1.0, ignore_keep_outs=True) is True
 
 
 def test_fits_fixed_still_blocked_by_other_components_in_keep_out():
@@ -93,7 +130,48 @@ def test_fits_fixed_still_blocked_by_other_components_in_keep_out():
     assert fits(3, 3, 2, 2, 0, 50, 50, occupied, 1.0, ignore_keep_outs=True) is False
 
 
-def test_fits_allows_position_after_occupied_area():
+def test_fits_hard_keep_out_blocks_even_corner_adjacent():
+    """Sentinel -2 (hard keep-out, e.g. RF zone) must block ALL components,
+    even FIXED corner-adjacent ones.  Only -1 (mount-clearance) allows the
+    corner-adjacency exemption.
+    """
+    # hard keep-out at top-left corner
+    occupied = {(0, 0): -2, (1, 0): -2, (0, 1): -2, (1, 1): -2}
+
+    # corner-adjacent FIXED component — still blocked because it's a hard keep-out
+    assert fits(0, 0, 2, 2, 0, 50, 50, occupied, 1.0, ignore_keep_outs=True) is False
+
+
+def test_fits_mount_clearance_allows_corner_adjacent_only():
+    """Sentinel -1 (mount-clearance) allows corner-adjacent FIXED components
+    but blocks single-edge FIXED ones.
+    """
+    occupied = {(0, 0): -1, (1, 0): -1, (0, 1): -1, (1, 1): -1}
+
+    # corner-adjacent → allowed
+    assert fits(0, 0, 2, 2, 0, 50, 50, occupied, 1.0, ignore_keep_outs=True) is True
+
+    # single-edge only (touches bottom edge only on a 50x50 board, at y=48)
+    occupied2 = {(3, 48): -1, (4, 48): -1, (3, 49): -1, (4, 49): -1}
+    assert fits(3, 48, 2, 2, 0, 50, 50, occupied2, 1.0, ignore_keep_outs=True) is False
+
+
+def test_fits_mixed_sentinels_hard_takes_priority():
+    """When a cell is first marked -1 (mount-clearance) and then a hard keep-out
+    zone overlaps, the cell must keep the -2 sentinel (hard takes priority).
+    The placer's grid initialisation must never downgrade -2 to -1.
+    """
+    # Simulate two overlapping zones: mount-clearance first, then hard keep-out
+    occupied = {}
+    # mount-clearance zone marks (0,0) as -1
+    occupied[(0, 0)] = -1
+    # hard keep-out zone overlaps — must upgrade to -2, not downgrade
+    if occupied.get((0, 0)) != -2:
+        occupied[(0, 0)] = -2
+
+    assert occupied[(0, 0)] == -2
+    # corner-adjacent FIXED component must be blocked because -2 is present
+    assert fits(0, 0, 1, 1, 0, 50, 50, occupied, 1.0, ignore_keep_outs=True) is False
     occupied = {(0, 0): 1, (1, 0): 1}
     # component at (2,0) should not conflict with (0,0) or (1,0)
     assert fits(2, 0, 2, 2, 0, 50, 50, occupied, 1.0) is True

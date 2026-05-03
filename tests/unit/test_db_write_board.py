@@ -101,7 +101,14 @@ def test_mount_hole_annular_ring_off_board_raises(tmp_path):
                 # clearance zone centred on the hole so the coverage check passes,
                 # but the annular ring still exits the board (x=0.1 - 1.85 = -1.75)
                 "keep_out_zones": [
-                    {"x_mm": 0, "y_mm": 21.0, "width_mm": 7, "height_mm": 14, "reason": "mid-left mh", "is_mount_clearance": True}
+                    {
+                        "x_mm": 0,
+                        "y_mm": 21.0,
+                        "width_mm": 7,
+                        "height_mm": 14,
+                        "reason": "mid-left mh",
+                        "is_mount_clearance": True,
+                    }
                 ],
                 # hole at x=0.1, radius=1.35+0.5=1.85 → extends to x=-1.75
                 "mount_holes": [{"x_mm": 0.1, "y_mm": 28.0, "diameter_mm": 2.7}],
@@ -119,7 +126,14 @@ def test_mount_hole_overlapping_non_mount_keep_out_raises(tmp_path):
                 "board": BOARD,
                 "keep_out_zones": [
                     # clearance zone covering the hole (so coverage check passes)
-                    {"x_mm": 39.0, "y_mm": 0.0, "width_mm": 7.0, "height_mm": 7.0, "reason": "corner TL", "is_mount_clearance": True},
+                    {
+                        "x_mm": 39.0,
+                        "y_mm": 0.0,
+                        "width_mm": 7.0,
+                        "height_mm": 7.0,
+                        "reason": "corner TL",
+                        "is_mount_clearance": True,
+                    },
                     # non-clearance zone that the annular ring overlaps
                     {"x_mm": 0, "y_mm": 0, "width_mm": 85, "height_mm": 1.5, "reason": "board edge margin top"},
                 ],
@@ -205,7 +219,14 @@ def test_mount_hole_outside_keep_out_raises(tmp_path):
                 "board": BOARD,
                 "keep_out_zones": [
                     # Wrong: placed at board corner, not centred on mount hole
-                    {"x_mm": 78.0, "y_mm": 0.0, "width_mm": 7.0, "height_mm": 7.0, "reason": "corner TR", "is_mount_clearance": True},
+                    {
+                        "x_mm": 78.0,
+                        "y_mm": 0.0,
+                        "width_mm": 7.0,
+                        "height_mm": 7.0,
+                        "reason": "corner TR",
+                        "is_mount_clearance": True,
+                    },
                 ],
                 # Hole at (61.5, 3.5) is NOT inside zone x=78..85
                 "mount_holes": [{"x_mm": 61.5, "y_mm": 3.5, "diameter_mm": 2.7}],
@@ -223,7 +244,14 @@ def test_mount_hole_centred_in_keep_out_passes(tmp_path):
             "board": BOARD,
             "keep_out_zones": [
                 # Correct: x = 61.5 - 3.5 = 58.0
-                {"x_mm": 58.0, "y_mm": 0.0, "width_mm": 7.0, "height_mm": 7.0, "reason": "corner TR", "is_mount_clearance": True},
+                {
+                    "x_mm": 58.0,
+                    "y_mm": 0.0,
+                    "width_mm": 7.0,
+                    "height_mm": 7.0,
+                    "reason": "corner TR",
+                    "is_mount_clearance": True,
+                },
             ],
             "mount_holes": [{"x_mm": 61.5, "y_mm": 3.5, "diameter_mm": 2.7}],
         },

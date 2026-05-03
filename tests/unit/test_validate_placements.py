@@ -167,10 +167,34 @@ def test_keep_out_no_overlap():
 
 def test_fixed_exempt_from_mount_clearance():
     conn = make_db()
-    # FIXED component placed inside a mount-clearance keep-out — should be exempt
-    _, rid = _make_run(conn, x1=0, y1=0, status1="FIXED", keep_outs=[(0, 0, 8, 8, "mount hole TL clearance", 1)])
+    # Corner-adjacent FIXED component (0,0) on 85x56 board — touches left and top edges
+    _, rid = _make_run(conn, x1=0, y1=0, w1=10, h1=10, status1="FIXED",
+                       keep_outs=[(0, 0, 8, 8, "mount hole TL clearance", 1)])
     result = validate(run_id=rid, db_path=conn)
     assert result["ok"] is True
+
+
+def test_fixed_single_edge_not_exempt_from_corner_mount_clearance():
+    """Single-edge FIXED component overlapping a corner mount-clearance zone must be reported.
+
+    Regression for J8 GPIO header: it spans only the bottom edge (not a corner) so it
+    is not exempt from the bottom-right corner keep-out zone.
+    """
+    conn = make_db()
+    # Component at (40, 46): x=[40,54], y=[46,56] — touches only the bottom edge (y+h=56)
+    # Board is 85x56. Keep-out at (58,49,7,7) — x=[58,65], y=[49,56]. No overlap here.
+    # Use a keep-out that the right side of this component overlaps:
+    # Component x=[40,54] → keep-out at (50,49,7,7) → overlaps x=[50,54], y=[49,56]
+    _, rid = _make_run(
+        conn,
+        x1=40, y1=46, w1=14, h1=10, status1="FIXED",
+        keep_outs=[(50, 49, 7, 7, "mount hole BR clearance", 1)],
+    )
+    result = validate(run_id=rid, db_path=conn)
+    assert result["ok"] is False
+    assert any("KEEP_OUT" in v for v in result["violations"]), (
+        "Single-edge FIXED component must trigger KEEP_OUT violation when overlapping corner zone"
+    )
 
 
 def test_fixed_not_exempt_from_rf_keep_out():
