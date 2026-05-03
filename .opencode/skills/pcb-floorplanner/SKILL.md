@@ -180,6 +180,26 @@ surround a mount hole. This disables the overlap check for that zone so the hole
 to sit inside it. **Do NOT use the old workaround** of putting "mount hole" in the `reason`
 string — that string match has been removed and will no longer suppress the check.
 
+**Keep-out zone positioning rule — always derive from mount hole coordinates, never from board corners:**
+
+For each mount hole at `(hx, hy)` with a clearance zone of `(kw × kh)` mm:
+
+```text
+keep_out.x_mm = hx - kw / 2
+keep_out.y_mm = hy - kh / 2
+```
+
+Example — RPi4B mount hole at (61.5, 3.5) with 7×7 mm keep-out:
+
+```text
+x_mm = 61.5 - 3.5 = 58.0   ← NOT board_width - keep_out_width (85 - 7 = 78)
+y_mm =  3.5 - 3.5 =  0.0
+```
+
+`db_write_board.py` enforces this: it will raise a `ValueError` if any mount hole does not
+fall inside at least one `is_mount_clearance` keep-out zone. The pipeline will not proceed
+to Step 3 until every hole is covered.
+
 ### `db_write_geometry.py` (Step 3)
 
 ```json

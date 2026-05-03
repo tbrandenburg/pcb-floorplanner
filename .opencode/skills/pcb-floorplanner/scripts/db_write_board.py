@@ -74,7 +74,21 @@ def write_board(data: dict, db_path=DEFAULT_DB) -> dict:
             (vid, z["x_mm"], z["y_mm"], z["width_mm"], z["height_mm"], z["reason"], is_mc),
         )
 
+    mount_clearance_zones = [z for z in keep_out_zones if z.get("is_mount_clearance", False)]
+
     for h in data.get("mount_holes", []):
+        # validate hole centre falls inside at least one is_mount_clearance keep-out zone
+        hx, hy = h["x_mm"], h["y_mm"]
+        covered = any(
+            z["x_mm"] <= hx <= z["x_mm"] + z["width_mm"] and z["y_mm"] <= hy <= z["y_mm"] + z["height_mm"]
+            for z in mount_clearance_zones
+        )
+        if not covered:
+            raise ValueError(
+                f"Mount hole at ({hx},{hy}) is not inside any is_mount_clearance keep-out zone. "
+                f"Derive keep-out position as x=hole_x-kw/2, y=hole_y-kh/2 and set is_mount_clearance=true."
+            )
+
         # validate hole (with annular ring clearance) does not overlap any keep-out zone
         annular = h["diameter_mm"] / 2 + 0.5  # drill radius + 0.5mm copper ring
         hx0 = h["x_mm"] - annular
