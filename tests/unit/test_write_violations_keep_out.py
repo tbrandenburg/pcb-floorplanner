@@ -230,7 +230,9 @@ def test_fixed_single_edge_component_violates_mount_clearance_keep_out(tmp_path)
     vid = conn.execute("INSERT INTO design_versions(session_id) VALUES (?)", (sid,)).lastrowid
 
     # J_wide: 40mm wide, placed in middle of bottom edge (y=93), touches only bottom edge
-    cid = conn.execute("INSERT INTO components(version_id, name, type) VALUES (?,?,?)", (vid, "J_wide", "CONN")).lastrowid
+    cid = conn.execute(
+        "INSERT INTO components(version_id, name, type) VALUES (?,?,?)", (vid, "J_wide", "CONN")
+    ).lastrowid
     conn.execute(
         "INSERT INTO component_geometry(component_id, width_mm, height_mm, courtyard_margin) VALUES (?,?,?,?)",
         (cid, 40.0, 5.0, 0.0),

@@ -68,12 +68,14 @@ def _is_corner_adjacent(x, y, w, h, W, H, tol=2.0):
     along that edge to clear the corner zone, so it is not exempt.
     """
     px1, py1 = x + w, y + h
-    touches = sum([
-        x   <= tol,
-        px1 >= W - tol,
-        y   <= tol,
-        py1 >= H - tol,
-    ])
+    touches = sum(
+        [
+            x <= tol,
+            px1 >= W - tol,
+            y <= tol,
+            py1 >= H - tol,
+        ]
+    )
     return touches >= 2
 
 

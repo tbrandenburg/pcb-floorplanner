@@ -112,9 +112,9 @@ def _is_corner_adjacent(x, y, w, h, W, H, tol=2.0):
     still be nudged away from corner keep-out zones.
     """
     px1, py1 = x + w, y + h
-    touches_left   = x  <= tol
-    touches_right  = px1 >= W - tol
-    touches_top    = y   <= tol
+    touches_left = x <= tol
+    touches_right = px1 >= W - tol
+    touches_top = y <= tol
     touches_bottom = py1 >= H - tol
     return sum([touches_left, touches_right, touches_top, touches_bottom]) >= 2
 

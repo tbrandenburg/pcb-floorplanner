@@ -76,9 +76,9 @@ def _is_corner_adjacent(px0, py0, px1, py1, W, H, tol=2.0):
     tol: tolerance in mm — the component body must be within this distance of the edge
     to count as "touching" it.
     """
-    touches_left   = px0 <= tol
-    touches_right  = px1 >= W - tol
-    touches_top    = py0 <= tol
+    touches_left = px0 <= tol
+    touches_right = px1 >= W - tol
+    touches_top = py0 <= tol
     touches_bottom = py1 >= H - tol
     edges_touched = sum([touches_left, touches_right, touches_top, touches_bottom])
     return edges_touched >= 2

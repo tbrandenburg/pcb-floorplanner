@@ -168,8 +168,9 @@ def test_keep_out_no_overlap():
 def test_fixed_exempt_from_mount_clearance():
     conn = make_db()
     # Corner-adjacent FIXED component (0,0) on 85x56 board — touches left and top edges
-    _, rid = _make_run(conn, x1=0, y1=0, w1=10, h1=10, status1="FIXED",
-                       keep_outs=[(0, 0, 8, 8, "mount hole TL clearance", 1)])
+    _, rid = _make_run(
+        conn, x1=0, y1=0, w1=10, h1=10, status1="FIXED", keep_outs=[(0, 0, 8, 8, "mount hole TL clearance", 1)]
+    )
     result = validate(run_id=rid, db_path=conn)
     assert result["ok"] is True
 
@@ -187,7 +188,11 @@ def test_fixed_single_edge_not_exempt_from_corner_mount_clearance():
     # Component x=[40,54] → keep-out at (50,49,7,7) → overlaps x=[50,54], y=[49,56]
     _, rid = _make_run(
         conn,
-        x1=40, y1=46, w1=14, h1=10, status1="FIXED",
+        x1=40,
+        y1=46,
+        w1=14,
+        h1=10,
+        status1="FIXED",
         keep_outs=[(50, 49, 7, 7, "mount hole BR clearance", 1)],
     )
     result = validate(run_id=rid, db_path=conn)

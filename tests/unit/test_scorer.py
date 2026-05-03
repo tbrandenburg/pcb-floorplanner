@@ -118,22 +118,20 @@ def test_single_edge_fixed_not_exempt_from_mount_clearance():
     p = {1: make_comp(30, 45, 44, 5)}
     # Bottom-right corner mount-clearance zone
     ko = [(93, 43, 7, 7, 1)]  # zone x=93..100, y=43..50
-    penalty = keep_out_penalty(p, ko, fixed_ids={1}, board=(100, 50))
     # Component body x=30..74 does NOT overlap ko x=93..100, so penalty is 0 regardless.
+    keep_out_penalty(p, ko, fixed_ids={1}, board=(100, 50))
     # Use a zone that J8's right end actually overlaps:
     ko2 = [(70, 43, 7, 7, 1)]  # zone x=70..77, y=43..50 — overlaps x=70..74
     penalty2 = keep_out_penalty(p, ko2, fixed_ids={1}, board=(100, 50))
-    assert penalty2 > 0.0, (
-        "Single-edge FIXED component must NOT be exempt from corner mount-clearance keep-out"
-    )
+    assert penalty2 > 0.0, "Single-edge FIXED component must NOT be exempt from corner mount-clearance keep-out"
 
 
 def test_single_edge_fixed_bottom_touches_right_corner_is_penalised():
     """Regression: FIXED bottom-edge component overlapping a BR corner keep-out is penalised."""
     # Exact J8 scenario scaled down: 85x56 board, J8 at x=16,y=50 size 44x5
     # BR keep-out at x=58,y=49 size 7x7 (centred on mount hole at 61.5,52.5)
-    p = {1: make_comp(16, 50, 44, 5)}   # x=[16,60], y=[50,55]
-    ko = [(58, 49, 7, 7, 1)]            # x=[58,65], y=[49,56]
+    p = {1: make_comp(16, 50, 44, 5)}  # x=[16,60], y=[50,55]
+    ko = [(58, 49, 7, 7, 1)]  # x=[58,65], y=[49,56]
     # body overlaps ko at x=[58,60], y=[50,55] → 2×5 = 10mm²
     penalty = keep_out_penalty(p, ko, fixed_ids={1}, board=(85, 56))
     assert math.isclose(penalty, 500.0 * 2.0 * 5.0, rel_tol=1e-6), (
