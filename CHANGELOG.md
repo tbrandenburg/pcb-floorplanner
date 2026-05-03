@@ -11,6 +11,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [v0.1.0] — 2026-05-03
+
+---
+
 ## [0.1.0] — 2026-05-03
 
 Initial release of the LLM-guided PCB floorplanner.
@@ -67,4 +71,5 @@ Initial release of the LLM-guided PCB floorplanner.
   cleaned up
 
 [Unreleased]: https://github.com/tbrandenburg/pcb-floorplanner/compare/v0.1.0...HEAD
+[v0.1.0]: https://github.com/tbrandenburg/pcb-floorplanner/compare/v0.0.0...v0.1.0
 [0.1.0]: https://github.com/tbrandenburg/pcb-floorplanner/releases/tag/v0.1.0
