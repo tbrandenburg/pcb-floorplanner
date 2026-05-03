@@ -77,48 +77,48 @@ HOLE = (0.05, 0.05, 0.05)
 # Colours chosen for maximum perceptual separation on a dark-green PCB background.
 COMPONENT_COLORS = {
     # Processors / compute
-    "SOC":        (0.95, 0.75, 0.00, 0.90),   # vivid amber
-    "MCU":        (0.95, 0.60, 0.00, 0.90),   # orange-amber
-    "FPGA":       (0.85, 0.85, 0.00, 0.88),   # yellow
-    "CPU":        (0.95, 0.70, 0.05, 0.90),   # deep amber
+    "SOC": (0.95, 0.75, 0.00, 0.90),  # vivid amber
+    "MCU": (0.95, 0.60, 0.00, 0.90),  # orange-amber
+    "FPGA": (0.85, 0.85, 0.00, 0.88),  # yellow
+    "CPU": (0.95, 0.70, 0.05, 0.90),  # deep amber
     # Memory
-    "SDRAM":      (0.20, 0.55, 1.00, 0.85),   # bright blue
-    "FLASH":      (0.10, 0.70, 1.00, 0.85),   # sky blue
-    "EEPROM":     (0.30, 0.80, 1.00, 0.82),   # light blue
-    "SRAM":       (0.15, 0.45, 0.90, 0.85),   # medium blue
+    "SDRAM": (0.20, 0.55, 1.00, 0.85),  # bright blue
+    "FLASH": (0.10, 0.70, 1.00, 0.85),  # sky blue
+    "EEPROM": (0.30, 0.80, 1.00, 0.82),  # light blue
+    "SRAM": (0.15, 0.45, 0.90, 0.85),  # medium blue
     # Power
-    "PMIC":       (1.00, 0.25, 0.10, 0.88),   # vivid red
-    "LDO":        (1.00, 0.45, 0.20, 0.85),   # red-orange
-    "DCDC":       (1.00, 0.35, 0.15, 0.85),   # deep red-orange
-    "VREG":       (0.95, 0.30, 0.20, 0.85),   # crimson
-    "FUSE":       (1.00, 0.65, 0.00, 0.85),   # gold-orange
+    "PMIC": (1.00, 0.25, 0.10, 0.88),  # vivid red
+    "LDO": (1.00, 0.45, 0.20, 0.85),  # red-orange
+    "DCDC": (1.00, 0.35, 0.15, 0.85),  # deep red-orange
+    "VREG": (0.95, 0.30, 0.20, 0.85),  # crimson
+    "FUSE": (1.00, 0.65, 0.00, 0.85),  # gold-orange
     # Connectivity
-    "USB_HUB":    (0.65, 0.20, 0.90, 0.82),   # purple
-    "USB_CTRL":   (0.75, 0.30, 0.95, 0.82),   # violet
-    "USB_PD":     (0.55, 0.15, 0.80, 0.82),   # dark purple
-    "ETH_PHY":    (0.10, 0.85, 0.55, 0.82),   # teal-green
-    "WIFI_BT":    (0.00, 0.90, 0.70, 0.82),   # cyan-green
-    "BLUETOOTH":  (0.10, 0.75, 0.90, 0.82),   # cyan
+    "USB_HUB": (0.65, 0.20, 0.90, 0.82),  # purple
+    "USB_CTRL": (0.75, 0.30, 0.95, 0.82),  # violet
+    "USB_PD": (0.55, 0.15, 0.80, 0.82),  # dark purple
+    "ETH_PHY": (0.10, 0.85, 0.55, 0.82),  # teal-green
+    "WIFI_BT": (0.00, 0.90, 0.70, 0.82),  # cyan-green
+    "BLUETOOTH": (0.10, 0.75, 0.90, 0.82),  # cyan
     # Passives
-    "RESISTOR":   (0.70, 0.70, 0.70, 0.70),   # light grey
-    "CAPACITOR":  (0.55, 0.55, 0.65, 0.70),   # blue-grey
-    "CAP":        (0.55, 0.55, 0.65, 0.70),   # alias
-    "INDUCTOR":   (0.60, 0.60, 0.50, 0.70),   # warm grey
+    "RESISTOR": (0.70, 0.70, 0.70, 0.70),  # light grey
+    "CAPACITOR": (0.55, 0.55, 0.65, 0.70),  # blue-grey
+    "CAP": (0.55, 0.55, 0.65, 0.70),  # alias
+    "INDUCTOR": (0.60, 0.60, 0.50, 0.70),  # warm grey
     # Timing / analog
-    "CRYSTAL":    (0.95, 0.95, 0.95, 0.88),   # near-white
-    "OSCILLATOR": (0.90, 0.90, 0.80, 0.85),   # off-white
+    "CRYSTAL": (0.95, 0.95, 0.95, 0.88),  # near-white
+    "OSCILLATOR": (0.90, 0.90, 0.80, 0.85),  # off-white
     # I/O
-    "CONNECTOR":  (0.30, 0.50, 0.90, 0.85),   # cornflower blue
-    "HDMI":       (0.80, 0.80, 0.10, 0.82),   # yellow-olive
-    "DP":         (0.75, 0.75, 0.15, 0.82),   # olive-yellow
+    "CONNECTOR": (0.30, 0.50, 0.90, 0.85),  # cornflower blue
+    "HDMI": (0.80, 0.80, 0.10, 0.82),  # yellow-olive
+    "DP": (0.75, 0.75, 0.15, 0.82),  # olive-yellow
     # Misc / audio / sensors
-    "CODEC":      (0.90, 0.30, 0.60, 0.82),   # pink-magenta
-    "AUDIO":      (0.85, 0.25, 0.55, 0.82),   # magenta
-    "SENSOR":     (0.40, 0.90, 0.40, 0.82),   # lime green
-    "LED":        (0.95, 0.95, 0.20, 0.85),   # bright yellow
-    "DIODE":      (0.90, 0.50, 0.50, 0.80),   # salmon
-    "TRANSISTOR": (0.65, 0.85, 0.40, 0.80),   # yellow-green
-    "IC":         (0.50, 0.75, 0.80, 0.80),   # steel blue
+    "CODEC": (0.90, 0.30, 0.60, 0.82),  # pink-magenta
+    "AUDIO": (0.85, 0.25, 0.55, 0.82),  # magenta
+    "SENSOR": (0.40, 0.90, 0.40, 0.82),  # lime green
+    "LED": (0.95, 0.95, 0.20, 0.85),  # bright yellow
+    "DIODE": (0.90, 0.50, 0.50, 0.80),  # salmon
+    "TRANSISTOR": (0.65, 0.85, 0.40, 0.80),  # yellow-green
+    "IC": (0.50, 0.75, 0.80, 0.80),  # steel blue
 }
 
 
@@ -130,10 +130,12 @@ def _component_color(ctype: str) -> tuple:
         return COMPONENT_COLORS[key]
     # Deterministic hue from type name hash — stays consistent across renders
     import hashlib
+
     h = int(hashlib.md5(key.encode()).hexdigest(), 16)
     hue = (h % 360) / 360.0
     # Convert HSV(hue, 0.75, 0.85) → RGB
     import colorsys
+
     r, g, b = colorsys.hsv_to_rgb(hue, 0.75, 0.85)
     return (r, g, b, 0.80)
 

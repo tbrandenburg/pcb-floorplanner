@@ -253,7 +253,19 @@ def greedy_place(version_id, db_path=DEFAULT_DB):
             if other_edge != edge:
                 other_edge_fixed.update(ids)
         placed = False
-        if fits(x, y, comp["w"], comp["h"], comp["cyd"], W, H, occupied, RES, ignore_keep_outs=True, ignore_fixed_ids=other_edge_fixed):
+        if fits(
+            x,
+            y,
+            comp["w"],
+            comp["h"],
+            comp["cyd"],
+            W,
+            H,
+            occupied,
+            RES,
+            ignore_keep_outs=True,
+            ignore_fixed_ids=other_edge_fixed,
+        ):
             placements[comp_id] = (x, y)
             place_at(comp_id, x, y, comp["w"], comp["h"], comp["cyd"], occupied, RES)
             placed = True
@@ -261,7 +273,19 @@ def greedy_place(version_id, db_path=DEFAULT_DB):
         else:
             for ox, oy in _edge_nudge_offsets(edge, W, H, RES):
                 tx, ty = snap(x + ox, RES), snap(y + oy, RES)
-                if fits(tx, ty, comp["w"], comp["h"], comp["cyd"], W, H, occupied, RES, ignore_keep_outs=True, ignore_fixed_ids=other_edge_fixed):
+                if fits(
+                    tx,
+                    ty,
+                    comp["w"],
+                    comp["h"],
+                    comp["cyd"],
+                    W,
+                    H,
+                    occupied,
+                    RES,
+                    ignore_keep_outs=True,
+                    ignore_fixed_ids=other_edge_fixed,
+                ):
                     placements[comp_id] = (tx, ty)
                     place_at(comp_id, tx, ty, comp["w"], comp["h"], comp["cyd"], occupied, RES)
                     placed = True

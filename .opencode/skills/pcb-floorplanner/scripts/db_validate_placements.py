@@ -71,6 +71,7 @@ def validate(run_id, db_path=DEFAULT_DB):
     When a Connection is passed it is not closed after use.
     """
     import sqlite3 as _sqlite3
+
     if isinstance(db_path, _sqlite3.Connection):
         conn = db_path
         _close = False
@@ -88,8 +89,8 @@ def validate(run_id, db_path=DEFAULT_DB):
         for hx, hy, hd in mount_holes:
             if _rect_circle_overlap(x, y, w, h, hx, hy, hd / 2):
                 violations.append(
-                    f"MOUNT_HOLE: {name} rect=[{x},{y}->{x+w:.1f},{y+h:.1f}] "
-                    f"overlaps hole at ({hx},{hy}) r={hd/2:.2f}mm"
+                    f"MOUNT_HOLE: {name} rect=[{x},{y}->{x + w:.1f},{y + h:.1f}] "
+                    f"overlaps hole at ({hx},{hy}) r={hd / 2:.2f}mm"
                 )
 
     # 2. Keep-out zone overlaps (rectangular, FIXED exempt from mount clearances)
@@ -101,10 +102,7 @@ def validate(run_id, db_path=DEFAULT_DB):
             if _rect_rect_overlap(x, y, w, h, kx, ky, kw, kh):
                 ovx = min(x + w, kx + kw) - max(x, kx)
                 ovy = min(y + h, ky + kh) - max(y, ky)
-                violations.append(
-                    f"KEEP_OUT: {name} overlaps zone '{reason}' "
-                    f"overlap={ovx:.2f}x{ovy:.2f}mm"
-                )
+                violations.append(f"KEEP_OUT: {name} overlaps zone '{reason}' overlap={ovx:.2f}x{ovy:.2f}mm")
 
     # 3. Component-to-component body overlaps
     comps = list(placements)
@@ -115,9 +113,7 @@ def validate(run_id, db_path=DEFAULT_DB):
             if _rect_rect_overlap(ax, ay, aw, ah, bx, by, bw, bh):
                 ovx = min(ax + aw, bx + bw) - max(ax, bx)
                 ovy = min(ay + ah, by + bh) - max(ay, by)
-                violations.append(
-                    f"OVERLAP: {na} and {nb} overlap by {ovx:.2f}x{ovy:.2f}mm"
-                )
+                violations.append(f"OVERLAP: {na} and {nb} overlap by {ovx:.2f}x{ovy:.2f}mm")
 
     return {"ok": len(violations) == 0, "violations": violations}
 
