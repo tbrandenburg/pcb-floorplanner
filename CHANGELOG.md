@@ -11,6 +11,23 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [v0.1.1] — upcoming
+
+### Fixed
+
+- Tightened `_is_corner_adjacent` tolerance and added pipeline iteration loop
+- Used two keep-out sentinels in placer to prevent mount-hole overlap
+- Enforced mount hole inside `is_mount_clearance` keep-out at write time
+- Exempted FIXED components from mount hole overlap checks in validator
+- Removed unused variable flagged by ruff in test_scorer
+
+### Changed
+
+- Updated README hero image with latest RPi 4B floorplan (run 10)
+- Removed board-specific example from keep-out positioning rule in SKILL.md
+
+---
+
 ## [v0.1.0] — 2026-05-03
 
 ---
