@@ -9,6 +9,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Added `output/` to `.gitignore` and removed all generated output files from version control
+
 ---
 
 ## [v0.1.1] — 2026-05-04
