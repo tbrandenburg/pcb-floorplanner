@@ -9,6 +9,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+---
+
+## [v0.1.2] — 2026-05-04
+
 ### Changed
 
 - Added `output/` to `.gitignore` and removed all generated output files from version control
@@ -95,7 +99,8 @@ Initial release of the LLM-guided PCB floorplanner.
 - Duplicate pipeline steps and bare fenced code blocks in SKILL.md / README
   cleaned up
 
-[Unreleased]: https://github.com/tbrandenburg/pcb-floorplanner/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/tbrandenburg/pcb-floorplanner/compare/v0.1.2...HEAD
+[v0.1.2]: https://github.com/tbrandenburg/pcb-floorplanner/compare/v0.1.1...v0.1.2
 [v0.1.1]: https://github.com/tbrandenburg/pcb-floorplanner/compare/v0.1.0...v0.1.1
 [v0.1.0]: https://github.com/tbrandenburg/pcb-floorplanner/compare/v0.0.0...v0.1.0
 [0.1.0]: https://github.com/tbrandenburg/pcb-floorplanner/releases/tag/v0.1.0
